@@ -1,0 +1,66 @@
+.auto-draggable {
+  touch-action: none; // CSS 属性 touch-action 用于设置触摸屏用户如何操纵元素的区域 (例如，浏览器内置的缩放功能)。
+  position: absolute;
+  box-sizing: border-box;
+  border-width: 2px;
+  border-style: solid;
+
+  .handle {
+    box-sizing: border-box;
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: #ffffff;
+    border: 1px solid #333;
+    box-shadow: 0 0 2px #bbb;
+  }
+  .handle-tl {
+    top: -5px;
+    left: -5px;
+    cursor: nw-resize;
+  }
+  .handle-tm {
+    top: -5px;
+    left: calc(50% - 4px);
+    /*margin-left: -5px;*/
+    cursor: n-resize;
+  }
+  .handle-tr {
+    top: -5px;
+    right: -5px;
+    cursor: ne-resize;
+  }
+  .handle-ml {
+    top: calc(50% - 4px);
+    /*margin-top: -5px;*/
+    left: -5px;
+    cursor: w-resize;
+  }
+  .handle-mr {
+    top: calc(50% - 4px);
+    /*margin-top: -5px;*/
+    right: -5px;
+    cursor: e-resize;
+  }
+  .handle-bl {
+    bottom: -5px;
+    left: -5px;
+    cursor: sw-resize;
+  }
+  .handle-bm {
+    bottom: -5px;
+    left: calc(50% - 4px);
+    /*margin-left: -5px;*/
+    cursor: s-resize;
+  }
+  .handle-br {
+    bottom: -5px;
+    right: -5px;
+    cursor: se-resize;
+  }
+}
+.select-none {
+  user-select: none;
+  -moz-user-select: none;
+  -webkit-user-select: none;
+}
