@@ -2,8 +2,10 @@
 
 import type { AutoDraggable, AutoDraggableProps } from '@/types';
 import {
+  computed,
   getCurrentInstance,
   onMounted,
+  reactive,
   type Ref,
   type WritableComputedRef,
 } from 'vue';
@@ -119,21 +121,35 @@ export function removeEvent(
   }
 }
 export const useEvent = (
-  autoDraggableRef: Ref<HTMLElement>,
+  autoDraggableRef: Ref<HTMLElement | undefined>,
   autoDraggable: WritableComputedRef<AutoDraggable>,
   props: AutoDraggableProps
 ) => {
   const { figureFinalValue } = useUtils(props);
 
-  const instance = getCurrentInstance();
-  console.log(instance);
+  const parentInfo = reactive<{
+    width: number;
+    height: number;
+  }>({
+    width: 0,
+    height: 0,
+  });
 
   const mousedownHandler = (e: Event) => {
     const event = e as MouseEvent;
     const { clientX, clientY } = event;
+    const { clientWidth, clientHeight } =
+      autoDraggableRef.value!.parentElement!;
+    if (parentInfo.height !== clientHeight) {
+      parentInfo.height = clientHeight;
+    }
+    if (parentInfo.width !== clientWidth) {
+      parentInfo.width = clientWidth;
+    }
+    console.log(parentInfo);
   };
 
   onMounted(() => {
-    addEvent(autoDraggableRef.value, 'mousedown', mousedownHandler);
+    addEvent(autoDraggableRef.value!, 'mousedown', mousedownHandler);
   });
 };

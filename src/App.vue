@@ -1,5 +1,5 @@
 <template>
-  <div class="container">
+  <!-- <div class="container">
     <div style="margin-bottom: 20px">
       <select v-model="radio">
         <option value="1280x800">1280x800</option>
@@ -7,11 +7,11 @@
       </select>
     </div>
     <div class="canvas-outsize" :style="outsizeStyle">
-      <div class="canvas" :style="style">
-        <AutoDraggableComponent v-model="autoDraggable" :scale="scale" />
-      </div>
+      <div class="canvas" :style="style"> -->
+  <AutoDraggableComponent v-model="autoDraggable" :scale="scale" />
+  <!-- </div>
     </div>
-  </div>
+  </div> -->
 </template>
 
 <script setup lang="ts">
