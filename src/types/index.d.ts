@@ -3,7 +3,7 @@ export interface AutoDraggable {
   top: number | string;
   width: number | string;
   height: number | string;
-  z?: number;
+  zIndex?: number;
 }
 
 export interface AutoDraggableProps {
@@ -15,7 +15,10 @@ export interface AutoDraggableProps {
   draggable?: boolean;
   resizeable?: boolean;
   limitAreaForParent?: boolean;
+  areaWidth?: number | string; // 父区域width 默认获取父元素width
+  areaHeight?: number | string; // 父区域height 默认获取父元素height
   modelValue: AutoDraggable;
+  active: boolean; // 该组件是否活跃
   disabledUserSelect?: boolean; // 是否开启选择文本，默认false
   handles?: Array<HandlesSet[number]>; // 控制触点，默认全选
 }
