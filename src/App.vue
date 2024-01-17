@@ -9,6 +9,7 @@
       {{ scale }}
 
       <button @click="active = !active">改变active</button>
+      <button @click="unit = unit === 'px' ? '%' : 'px'">改变单位</button>
     </div>
     <div class="canvas-outsize" :style="outsizeStyle">
       <div class="canvas" :style="style">
@@ -20,7 +21,7 @@
           :ratio-lock="true"
           :draggable="true"
           :resizeable="true"
-          unit-type="%"
+          :unit-type="unit"
           :is-keep-decimals="true"
           @drag-start="dragStart"
           @drag-stop="dragStop"
@@ -63,6 +64,7 @@ watch(
 );
 
 const scale = ref<number>(0.5);
+const unit = ref<string>('px');
 const active = ref<boolean>(true);
 
 const outsizeStyle = computed(() => {
@@ -83,24 +85,24 @@ const style = computed(() => {
 });
 
 const dragStart = (event: MouseEvent, value: AutoDraggable) => {
-  console.log(event, value);
+  // console.log(event, value);
 };
 const dragStop = (
   event: MouseEvent,
   value: AutoDraggable,
   newValue: AutoDraggable
 ) => {
-  console.log(event, value, newValue);
+  // console.log(event, value, newValue);
 };
 const resizeStart = (event: MouseEvent, oldValue: AutoDraggable) => {
-  console.log(event, oldValue);
+  // console.log(event, oldValue);
 };
 const resizeStop = (
   event: MouseEvent,
   oldValue: AutoDraggable,
   newValue: AutoDraggable
 ) => {
-  console.log(event, oldValue, newValue);
+  // console.log(event, oldValue, newValue);
 };
 </script>
 

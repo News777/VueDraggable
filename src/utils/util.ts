@@ -1,3 +1,5 @@
+import Decimal from 'decimal.js';
+
 export const valIsNaN = (
   value: number | string | undefined,
   replaceVal: number = 1
@@ -14,8 +16,13 @@ export const figureFinalValue = (
 ): number => {
   const scaleOfNumber = valIsNaN(scale);
   const valueOfNumber = valIsNaN(value);
+
   return isKeepDecimals
-    ? Number((valueOfNumber / scaleOfNumber).toFixed(decimalPlaces))
+    ? Number(
+        new Decimal(valueOfNumber / scaleOfNumber)
+          .toDecimalPlaces(decimalPlaces)
+          .toNumber()
+      )
     : Math.round(valueOfNumber / scaleOfNumber);
 };
 

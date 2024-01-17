@@ -37,6 +37,7 @@ import {
   restrictToBounds,
 } from '../utils/util';
 import _ from 'lodash';
+import Decimal from 'decimal.js';
 interface AutoDraggableProps {
   theme?: string; // 主题色，默认#409EFD
   unitType?: 'px' | '%'; // 单位，默认px
@@ -229,7 +230,10 @@ const figureNewVal = (value: string | number, type: 'w' | 'h') => {
 };
 
 const keepDecimalsToNum = (val: number, defaultVal: number = 1) => {
-  return valIsNaN(val.toFixed(props.decimalPlaces), defaultVal);
+  const newVal = new Decimal(val)
+    .toDecimalPlaces(props.decimalPlaces)
+    .toNumber();
+  return valIsNaN(newVal, defaultVal);
 };
 
 const figureRatioMax = (
@@ -241,9 +245,9 @@ const figureRatioMax = (
   const wRate = wVal / w;
   const hRate = hVal / h;
   if (wRate > hRate) {
-    return [keepDecimalsToNum(w * hRate), hVal];
+    return [keepDecimalsToNum(w * hRate), keepDecimalsToNum(hVal)];
   } else {
-    return [wVal, keepDecimalsToNum(h * wRate)];
+    return [keepDecimalsToNum(wVal), keepDecimalsToNum(h * wRate)];
   }
 };
 
@@ -325,7 +329,7 @@ const mousemoveHandler = (event: MouseEvent) => {
         valIsNaN(autoDraggable.value.width, 0) < eleMaxWidth.value)
     ) {
       autoDraggable.value.left = restrictToBounds(
-        currentL,
+        keepDecimalsToNum(currentL),
         min || 0,
         max ||
           (isPercent.value ? 100 : state.parentInfo.width) -
@@ -335,7 +339,9 @@ const mousemoveHandler = (event: MouseEvent) => {
     }
     if (special) {
       autoDraggable.value.top = restrictToBounds(
-        t + figureNewVal(event.clientX - state.initX, 'h') / state.rate,
+        keepDecimalsToNum(
+          t + figureNewVal(event.clientX - state.initX, 'w') / state.rate
+        ),
         specialMin!,
         specialMax!,
         props.limitAreaForParent
@@ -351,7 +357,7 @@ const mousemoveHandler = (event: MouseEvent) => {
         valIsNaN(autoDraggable.value.height, 0) < eleMaxHeight.value)
     ) {
       autoDraggable.value.top = restrictToBounds(
-        currentT,
+        keepDecimalsToNum(currentT),
         min || 0,
         max ||
           (isPercent.value ? 100 : state.parentInfo.height) -
@@ -369,7 +375,7 @@ const mousemoveHandler = (event: MouseEvent) => {
     const currentW =
       operator === 'add' ? w + valueAfterMove : w - valueAfterMove;
     autoDraggable.value.width = restrictToBounds(
-      currentW,
+      keepDecimalsToNum(currentW),
       valIsNaN(props.minWidth, 0),
       max,
       props.limitAreaForParent
@@ -377,10 +383,10 @@ const mousemoveHandler = (event: MouseEvent) => {
     if (props.ratioLock && ratioMax) {
       const currentH =
         operator === 'add'
-          ? h + keepDecimalsToNum(valueAfterMove / state.rate)
-          : h - keepDecimalsToNum(valueAfterMove / state.rate);
+          ? h + valueAfterMove / state.rate
+          : h - valueAfterMove / state.rate;
       autoDraggable.value.height = restrictToBounds(
-        currentH,
+        keepDecimalsToNum(currentH),
         valIsNaN(props.minHeight, 0),
         ratioMax,
         props.limitAreaForParent
@@ -396,7 +402,7 @@ const mousemoveHandler = (event: MouseEvent) => {
     const currentH =
       operator === 'add' ? h + valueAfterMove : h - valueAfterMove;
     autoDraggable.value.height = restrictToBounds(
-      currentH,
+      keepDecimalsToNum(currentH),
       valIsNaN(props.minHeight, 0),
       max,
       props.limitAreaForParent
@@ -407,7 +413,7 @@ const mousemoveHandler = (event: MouseEvent) => {
           ? w + keepDecimalsToNum(valueAfterMove * state.rate)
           : w - keepDecimalsToNum(valueAfterMove * state.rate);
       autoDraggable.value.width = restrictToBounds(
-        currentW,
+        keepDecimalsToNum(currentW),
         valIsNaN(props.minWidth, 0),
         ratioMax,
         props.limitAreaForParent
@@ -425,11 +431,13 @@ const mousemoveHandler = (event: MouseEvent) => {
             const value = figureRatioMax(l + w, t + h, w, h);
             _w('sub', value[0], value[1]);
             // _t(t - (value[0] - w) / state.rate, t + h);
+            console.log(value);
+            console.log(t - (value[1] - h));
             _l(
               Math.max(0, l - (value[1] - h) * state.rate),
               l + w,
               true,
-              t - (value[0] - w) / state.rate,
+              t - (value[1] - h),
               t + h
             );
           } else _w('sub', l + w), _h('sub', t + h), _t(), _l();
