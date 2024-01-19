@@ -8,7 +8,7 @@
   >
     <template v-for="handle in handles" :key="handle">
       <div
-        v-show="active && resizeable"
+        v-show="state.active && resizeable"
         class="handle"
         :class="'handle-' + handle"
         @mousedown.stop.self="mousedownHandler($event, handle)"
@@ -101,6 +101,8 @@ const emit = defineEmits<{
     oldValue: AutoDraggable,
     newValue: AutoDraggable
   ): void;
+  (event: 'active', value: AutoDraggable): void;
+  (event: 'inactive', value: AutoDraggable): void;
 }>();
 
 const state = reactive<{
@@ -135,7 +137,7 @@ const state = reactive<{
     width: 0,
     height: 0,
   },
-  active: false, // 是否开启移动
+  active: props.active, // 是否开启移动
   handle: null, // 触点位置
   rate: 1, // 宽高比，宽高比将会保留小数，故采用props默认的小数位进行保存
 });
@@ -158,7 +160,7 @@ const autoDraggableRef = ref<HTMLElement>();
 // 这里采用top、left 而不采用transform，因为有百分比单位，而transform 百分比基于自身
 const AutoDraggableStyle = computed<CSSProperties>(() => {
   return {
-    borderColor: props.theme,
+    borderColor: props.draggable ? props.theme : '#666666',
     left: setValUnit(autoDraggable.value.left, props.unitType),
     top: setValUnit(autoDraggable.value.top, props.unitType),
     width: setValUnit(autoDraggable.value.width, props.unitType),
@@ -197,6 +199,16 @@ const eleMaxHeight = computed<number>(() => {
     initValue
   );
 });
+
+watch(
+  () => props.active,
+  (n) => {
+    state.active = n;
+    if (!n) {
+      emit('inactive', _.cloneDeep(autoDraggable.value));
+    }
+  }
+);
 
 onMounted(() => {
   getParentAndRect();
@@ -255,13 +267,14 @@ const mousedownHandler = (
   event: MouseEvent,
   handle: HandlesSet[number] | null = null
 ) => {
-  if (!props.active || !(props.draggable || props.resizeable)) return;
+  if (!(props.draggable || props.resizeable)) return;
   // 获取当前鼠标点击位置
   const { clientX, clientY } = event;
   state.initX = clientX; // 记录鼠标坐标X
   state.initY = clientY; // 记录鼠标坐标Y
   // 获取当前绑定元素的配置
   state.beforeClickConfig = _.cloneDeep(autoDraggable.value);
+  emit('active', _.cloneDeep(autoDraggable.value));
   if (props.draggable && !handle) {
     emit('drag-start', event, state.beforeClickConfig);
   }
@@ -281,7 +294,7 @@ const mousedownHandler = (
     state.parentInfo.width !== state.parentElement?.clientWidth &&
       (state.parentInfo.width = state.parentElement?.clientWidth || 0);
   }
-  state.active = true;
+  !state.active && (state.active = true);
   state.handle = handle;
   props.ratioLock &&
     (state.rate = keepDecimalsToNum(
@@ -535,7 +548,7 @@ const mouseupHandler = (event: MouseEvent) => {
       _.cloneDeep(autoDraggable.value)
     );
   }
-  state.active = false;
+  !props.active && (state.active = false);
   state.handle = null;
   removeEvent(state.ele!, 'mousemove', mousemoveHandler);
   removeEvent(state.ele!, 'mouseup', mouseupHandler);

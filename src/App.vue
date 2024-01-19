@@ -14,9 +14,11 @@
     <div class="canvas-outsize" :style="outsizeStyle">
       <div class="canvas" :style="style">
         <AutoDraggableComponent
-          v-model="autoDraggable"
+          v-for="(item, index) in autoDraggable"
+          :key="item.uid"
+          v-model="autoDraggable[index]"
           :scale="scale"
-          :active="active"
+          :active="select.uid === item.uid"
           :limit-area-for-parent="true"
           :ratio-lock="true"
           :draggable="true"
@@ -27,6 +29,8 @@
           @drag-stop="dragStop"
           @resize-start="resizeStart"
           @resize-stop="resizeStop"
+          @active="actived"
+          @inactive="inactived"
         />
       </div>
       <div class="canvas"></div>
@@ -35,16 +39,30 @@
 </template>
 
 <script setup lang="ts">
-import AutoDraggableComponent from './auto-draggable/index.vue';
+import AutoDraggableComponent from 'vue-auto-draggable';
 import type { AutoDraggable } from './types/index';
-import { ref, computed, reactive, watch } from 'vue';
+import { ref, computed, reactive, watch, type StyleValue } from 'vue';
 
-const autoDraggable = ref<AutoDraggable>({
-  width: 30,
-  height: 15,
-  top: 0,
-  left: 0,
-});
+const autoDraggable = ref<any>([
+  {
+    width: 300,
+    height: 150,
+    top: 0,
+    left: 0,
+    zIndex: 1,
+    uid: '1',
+  },
+  {
+    width: 500,
+    height: 450,
+    top: 330,
+    left: 330,
+    zIndex: 1,
+    uid: '2',
+  },
+]);
+
+const select = ref<any>({});
 
 const radio = ref<string>('1280x800');
 const context = reactive<{ width: number; height: number }>({
@@ -64,10 +82,10 @@ watch(
 );
 
 const scale = ref<number>(0.5);
-const unit = ref<string>('px');
+const unit = ref<'px' | '%'>('px');
 const active = ref<boolean>(true);
 
-const outsizeStyle = computed(() => {
+const outsizeStyle = computed<StyleValue>(() => {
   return {
     width: context.width * scale.value + 'px',
     height: context.height * scale.value + 'px',
@@ -103,6 +121,12 @@ const resizeStop = (
   newValue: AutoDraggable
 ) => {
   // console.log(event, oldValue, newValue);
+};
+const actived = (value: AutoDraggable) => {
+  select.value = value;
+};
+const inactived = (value: AutoDraggable) => {
+  console.log(value);
 };
 </script>
 
