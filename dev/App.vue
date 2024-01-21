@@ -13,7 +13,7 @@
     </div>
     <div class="canvas-outsize" :style="outsizeStyle">
       <div class="canvas" :style="style">
-        <AutoDraggableComponent
+        <ExtendsAutoDraggable
           v-for="(item, index) in autoDraggable"
           :key="item.uid"
           v-model="autoDraggable[index]"
@@ -39,10 +39,8 @@
 </template>
 
 <script setup lang="ts">
-import AutoDraggableComponent from 'vue-auto-draggable';
-import type { AutoDraggable } from './types/index';
 import { ref, computed, reactive, watch, type StyleValue } from 'vue';
-
+type ExtendsAutoDraggable = any;
 const autoDraggable = ref<any>([
   {
     width: 300,
@@ -102,30 +100,30 @@ const style = computed(() => {
   };
 });
 
-const dragStart = (event: MouseEvent, value: AutoDraggable) => {
+const dragStart = (event: MouseEvent, value: ExtendsAutoDraggable) => {
   // console.log(event, value);
 };
 const dragStop = (
   event: MouseEvent,
-  value: AutoDraggable,
-  newValue: AutoDraggable
+  value: ExtendsAutoDraggable,
+  newValue: ExtendsAutoDraggable
 ) => {
   // console.log(event, value, newValue);
 };
-const resizeStart = (event: MouseEvent, oldValue: AutoDraggable) => {
+const resizeStart = (event: MouseEvent, oldValue: ExtendsAutoDraggable) => {
   // console.log(event, oldValue);
 };
 const resizeStop = (
   event: MouseEvent,
-  oldValue: AutoDraggable,
-  newValue: AutoDraggable
+  oldValue: ExtendsAutoDraggable,
+  newValue: ExtendsAutoDraggable
 ) => {
   // console.log(event, oldValue, newValue);
 };
-const actived = (value: AutoDraggable) => {
+const actived = (value: ExtendsAutoDraggable) => {
   select.value = value;
 };
-const inactived = (value: AutoDraggable) => {
+const inactived = (value: ExtendsAutoDraggable) => {
   console.log(value);
 };
 </script>
@@ -147,3 +145,4 @@ const inactived = (value: AutoDraggable) => {
   }
 }
 </style>
+../packages/ExtendsAutoDraggable/types/index

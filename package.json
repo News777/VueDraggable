@@ -1,24 +1,23 @@
 {
   "name": "vue-auto-draggable",
   "author": "News777",
-  "version": "1.0.7",
+  "version": "1.1.0",
   "license": "MIT",
   "files": [
-    "dist",
+    "lib",
     "package.json",
     "README.md",
-    "LICENSE",
-    "./src/env.d.ts"
+    "LICENSE"
   ],
-  "main": "./dist/vue-auto-draggable.umd.js",
-  "module": "./dist/vue-auto-draggable.es.js",
+  "main": "./lib/vue-auto-draggable.umd.js",
+  "module": "./lib/vue-auto-draggable.es.js",
   "exports": {
-    "./dist/style.css": "./dist/style.css",
-    "./css": "./dist/style.css",
+    "./lib/css/VueAutoDraggable.css": "./lib/css/VueAutoDraggable.css",
+    "./css": "./lib/css/VueAutoDraggable.css",
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/vue-auto-draggable.es.js",
-      "require": "./dist/vue-auto-draggable.umd.cjs"
+      "types": "./lib/index.d.ts",
+      "import": "./lib/vue-auto-draggable.es.js",
+      "require": "./lib/vue-auto-draggable.umd.cjs"
     }
   },
   "keywords": [
@@ -27,8 +26,8 @@
     "draggable",
     "plugin"
   ],
-  "types": "./dist/index.d.ts",
-  "description": "An element-dragable plug-in based on Vue3.4+Ts5.x",
+  "types": "./lib/index.d.ts",
+  "description": "An element-dragable plug-in based on Vue3.3",
   "private": false,
   "type": "module",
   "repository": {
@@ -40,17 +39,17 @@
   },
   "homepage": "https://github.com/News777/VueDraggable#readme",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite ./dev",
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "build-only": "vite build",
-    "type-check": "vue-tsc --build --force"
+    "type-check": "vue-tsc --noEmit"
   },
   "dependencies": {
     "decimal.js": "^10.4.3",
     "lodash": "^4.17.21",
     "vue": "^3.3.11",
-    "vue-auto-draggable": "^1.0.2"
+    "vue-auto-draggable": "^1.0.8"
   },
   "devDependencies": {
     "@tsconfig/node18": "^18.2.2",
@@ -69,5 +68,8 @@
   "engines": {
     "node": ">= 18.0.0",
     "npm": ">= 9.0.0"
+  },
+  "volta": {
+    "node": "18.15.0"
   }
 }

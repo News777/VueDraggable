@@ -1,22 +1,10 @@
 {
-  "extends": "@tsconfig/node18/tsconfig.json",
-  "include": [
-    "vite.config.*",
-    "vitest.config.*",
-    "cypress.config.*",
-    "nightwatch.conf.*",
-    "playwright.config.*"
-  ],
+  "include": ["vite.config.*", "./package.json"],
   "compilerOptions": {
     "composite": true,
-    "noEmit": true,
     "module": "ESNext",
-    "target": "ESNext",
-    "lib": ["ESNext", "DOM"],
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    "jsx": "preserve",
     "moduleResolution": "Node",
-    "types": ["node"]
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true
   }
 }

@@ -15,8 +15,8 @@ dependencies:
     specifier: ^3.3.11
     version: 3.4.15(typescript@5.3.3)
   vue-auto-draggable:
-    specifier: ^1.0.2
-    version: 1.0.2(typescript@5.3.3)
+    specifier: ^1.0.8
+    version: 1.0.8(typescript@5.3.3)
 
 devDependencies:
   '@tsconfig/node18':
@@ -1806,8 +1806,8 @@ packages:
       fsevents: 2.3.3
     dev: true
 
-  /vue-auto-draggable@1.0.2(typescript@5.3.3):
-    resolution: {integrity: sha512-3yZN/3xIZgBkNfWhp8MyJCjS5CCrqzZOdQhG+l231EUnY3PwQivG/VUvBgakEYerKsfC+Uy8fjsnQ6E0Q0NI6Q==}
+  /vue-auto-draggable@1.0.8(typescript@5.3.3):
+    resolution: {integrity: sha512-9k+P8tBdA4mBZMUGwbEpsA6ypVtP+J0qLTfMHWL4DZA13xBUfzXFZNukWByB0v1vAGc15cDyh/rRhap7vt75mQ==}
     engines: {node: '>= 18.0.0', npm: '>= 9.0.0'}
     dependencies:
       decimal.js: 10.4.3

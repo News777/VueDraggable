@@ -1,11 +1,29 @@
 {
-  "files": [],
-  "references": [
-    {
-      "path": "./tsconfig.node.json"
-    },
-    {
-      "path": "./tsconfig.app.json"
+  "compilerOptions": {
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "strict": true,
+    "jsx": "preserve",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "lib": ["ESNext", "DOM"],
+    "skipLibCheck": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./packages/AutoDraggable/*"]
     }
-  ]
+  },
+  "include": [
+    "packages/**/*.vue",
+    "packages/**/*.ts",
+    "packages/**/*.d.ts",
+    "dev/**/*.vue",
+    "dev/**/*.ts",
+    "dev/**/*.d.ts"
+  ],
+  "references": [{ "path": "./tsconfig.node.json" }]
 }

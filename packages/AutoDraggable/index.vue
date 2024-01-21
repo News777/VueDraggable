@@ -18,7 +18,7 @@
   </div>
 </template>
 
-<script setup lang="ts" name="AutoDraggable">
+<script setup lang="tsx" name="VueAutoDraggable">
 import {
   type CSSProperties,
   computed,
@@ -27,7 +27,11 @@ import {
   reactive,
   watch,
 } from 'vue';
-import type { AutoDraggable, HandlesSet } from '../types/index.d';
+import type {
+  ExtendsAutoDraggable,
+  AutoDraggableProps,
+  HandlesSet,
+} from '@/type';
 import {
   figureFinalValue,
   setValUnit,
@@ -35,31 +39,9 @@ import {
   addEvent,
   removeEvent,
   restrictToBounds,
-} from '../utils/util';
+} from '@/utils/util';
 import _ from 'lodash';
 import Decimal from 'decimal.js';
-interface AutoDraggableProps {
-  theme?: string; // 主题色，默认#409EFD
-  unitType?: 'px' | '%'; // 单位，默认px
-  scale?: number | string; // 缩放比例，默认1
-  isKeepDecimals?: boolean; // 是否保留小数，默认false
-  decimalPlaces?: number; // 保留几位小数,默认2位
-  draggable?: boolean; // 是否可以移动，默认true
-  resizeable?: boolean; // 是否可以缩放，默认true
-  // areaWidth?: number | string; // 父区域width 默认获取父元素width
-  // areaHeight?: number | string; // 父区域height 默认获取父元素height
-  limitAreaForParent?: boolean; // 限制元素移动区域为父元素内，默认true
-  limitAreaClass?: string;
-  modelValue: AutoDraggable;
-  maxWidth?: number | string;
-  maxHeight?: number | string;
-  minWidth?: number | string;
-  minHeight?: number | string;
-  ratioLock?: boolean;
-  active: boolean; // 该组件是否活跃
-  disabledUserSelect?: boolean; // 是否开启选择文本，默认false
-  handles?: Array<HandlesSet[number]>; // 控制触点，默认全选
-}
 const props = withDefaults(defineProps<AutoDraggableProps>(), {
   theme: '#409EFD', // 默认主题颜色
   unitType: 'px',
@@ -86,27 +68,27 @@ const props = withDefaults(defineProps<AutoDraggableProps>(), {
 });
 
 const emit = defineEmits<{
-  (event: 'update:modelValue', value: AutoDraggable): void;
-  (event: 'drag-start', e: MouseEvent, value: AutoDraggable): void;
+  (event: 'update:modelValue', value: ExtendsAutoDraggable): void;
+  (event: 'drag-start', e: MouseEvent, value: ExtendsAutoDraggable): void;
   (
     event: 'drag-stop',
     e: MouseEvent,
-    oldValue: AutoDraggable,
-    newValue: AutoDraggable
+    oldValue: ExtendsAutoDraggable,
+    newValue: ExtendsAutoDraggable
   ): void;
-  (event: 'resize-start', e: MouseEvent, value: AutoDraggable): void;
+  (event: 'resize-start', e: MouseEvent, value: ExtendsAutoDraggable): void;
   (
     event: 'resize-stop',
     e: MouseEvent,
-    oldValue: AutoDraggable,
-    newValue: AutoDraggable
+    oldValue: ExtendsAutoDraggable,
+    newValue: ExtendsAutoDraggable
   ): void;
-  (event: 'active', value: AutoDraggable): void;
-  (event: 'inactive', value: AutoDraggable): void;
+  (event: 'active', value: ExtendsAutoDraggable): void;
+  (event: 'inactive', value: ExtendsAutoDraggable): void;
 }>();
 
 const state = reactive<{
-  beforeClickConfig: AutoDraggable;
+  beforeClickConfig: ExtendsAutoDraggable;
   initX: number;
   initY: number;
   parentElement: HTMLElement | null;
@@ -146,7 +128,7 @@ const autoDraggable = computed({
   get() {
     return props.modelValue;
   },
-  set(value: AutoDraggable) {
+  set(value: ExtendsAutoDraggable) {
     emit('update:modelValue', value);
   },
 });
@@ -556,5 +538,6 @@ const mouseupHandler = (event: MouseEvent) => {
 </script>
 
 <style scoped lang="scss">
-@import url('../styles/auto-draggable.scss');
+@import url('./styles/auto-draggable.scss');
 </style>
+@/types ./interface ./interface/type
