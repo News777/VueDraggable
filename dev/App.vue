@@ -13,7 +13,7 @@
     </div>
     <div class="canvas-outsize" :style="outsizeStyle">
       <div class="canvas" :style="style">
-        <ExtendsAutoDraggable
+        <VueAutoDraggable
           v-for="(item, index) in autoDraggable"
           :key="item.uid"
           v-model="autoDraggable[index]"
@@ -40,7 +40,7 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive, watch, type StyleValue } from 'vue';
-type ExtendsAutoDraggable = any;
+import { VueAutoDraggable, type ExtendsAutoDraggable } from '../packages';
 const autoDraggable = ref<any>([
   {
     width: 300,

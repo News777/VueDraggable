@@ -4,14 +4,15 @@
     class="auto-draggable"
     :style="AutoDraggableStyle"
     :class="{ 'select-none': disabledUserSelect }"
-    @mousedown.prevent.self="mousedownHandler($event, null)"
+    @mousedown="mousedownHandler($event, null)"
   >
     <template v-for="handle in handles" :key="handle">
       <div
         v-show="state.active && resizeable"
         class="handle"
         :class="'handle-' + handle"
-        @mousedown.stop.self="mousedownHandler($event, handle)"
+        :style="HandleStyle"
+        @mousedown.stop.prevent="mousedownHandler($event, handle)"
       ></div>
     </template>
     <slot></slot>
@@ -27,11 +28,7 @@ import {
   reactive,
   watch,
 } from 'vue';
-import type {
-  ExtendsAutoDraggable,
-  AutoDraggableProps,
-  HandlesSet,
-} from '@/type';
+import type { ExtendsAutoDraggable, HandlesSet, AutoDraggable } from './type';
 import {
   figureFinalValue,
   setValUnit,
@@ -39,11 +36,35 @@ import {
   addEvent,
   removeEvent,
   restrictToBounds,
-} from '@/utils/util';
+} from './utils/util';
 import _ from 'lodash';
 import Decimal from 'decimal.js';
-const props = withDefaults(defineProps<AutoDraggableProps>(), {
+interface AutoDraggableProps<T> {
+  theme?: string; // 主题色，默认#409EFD
+  inActiveColor?: string; // 失活颜色
+  unitType?: 'px' | '%'; // 单位，默认px
+  scale?: number | string; // 缩放比例，默认1
+  isKeepDecimals?: boolean; // 是否保留小数，默认false
+  decimalPlaces?: number; // 保留几位小数,默认2位
+  draggable?: boolean; // 是否可以移动，默认true
+  resizeable?: boolean; // 是否可以缩放，默认true
+  // areaWidth?: number | string; // 父区域width 默认获取父元素width
+  // areaHeight?: number | string; // 父区域height 默认获取父元素height
+  limitAreaForParent?: boolean; // 限制元素移动区域为父元素内，默认true
+  limitAreaClass?: string;
+  modelValue: Required<Omit<AutoDraggable, 'zIndex'>> & T;
+  maxWidth?: number | string;
+  maxHeight?: number | string;
+  minWidth?: number | string;
+  minHeight?: number | string;
+  ratioLock?: boolean;
+  active: boolean; // 该组件是否活跃
+  disabledUserSelect?: boolean; // 是否开启选择文本，默认false
+  handles?: Array<HandlesSet[number]>; // 控制触点，默认全选
+}
+const props = withDefaults(defineProps<AutoDraggableProps<any>>(), {
   theme: '#409EFD', // 默认主题颜色
+  inActiveColor: '#666666',
   unitType: 'px',
   scale: 1,
   isKeepDecimals: false,
@@ -80,7 +101,7 @@ const emit = defineEmits<{
   (
     event: 'resize-stop',
     e: MouseEvent,
-    oldValue: ExtendsAutoDraggable,
+    oldValu: ExtendsAutoDraggable,
     newValue: ExtendsAutoDraggable
   ): void;
   (event: 'active', value: ExtendsAutoDraggable): void;
@@ -142,12 +163,19 @@ const autoDraggableRef = ref<HTMLElement>();
 // 这里采用top、left 而不采用transform，因为有百分比单位，而transform 百分比基于自身
 const AutoDraggableStyle = computed<CSSProperties>(() => {
   return {
-    borderColor: props.draggable ? props.theme : '#666666',
+    borderColor: props.draggable ? props.theme : props.inActiveColor,
     left: setValUnit(autoDraggable.value.left, props.unitType),
     top: setValUnit(autoDraggable.value.top, props.unitType),
     width: setValUnit(autoDraggable.value.width, props.unitType),
     height: setValUnit(autoDraggable.value.height, props.unitType),
     zIndex: autoDraggable.value.zIndex,
+  };
+});
+
+const HandleStyle = computed<CSSProperties>(() => {
+  return {
+    borderColor: props.resizeable ? props.theme : props.inActiveColor,
+    scale: keepDecimalsToNum(1 / valIsNaN(props.scale, 1)),
   };
 });
 
@@ -180,6 +208,14 @@ const eleMaxHeight = computed<number>(() => {
     (isPercent.value && (maxHeightProp ? Math.min(100, maxHeightProp) : 100)) ||
     initValue
   );
+});
+
+const eleMinWidth = computed<number>(() => {
+  return props.limitAreaForParent ? 0 : -Infinity;
+});
+
+const eleMinHeight = computed<number>(() => {
+  return props.limitAreaForParent ? 0 : -Infinity;
 });
 
 watch(
@@ -325,7 +361,7 @@ const mousemoveHandler = (event: MouseEvent) => {
     ) {
       autoDraggable.value.left = restrictToBounds(
         keepDecimalsToNum(currentL),
-        min || 0,
+        min || eleMinWidth.value,
         max ||
           (isPercent.value ? 100 : state.parentInfo.width) -
             valIsNaN(autoDraggable.value.width, 0),
@@ -353,7 +389,7 @@ const mousemoveHandler = (event: MouseEvent) => {
     ) {
       autoDraggable.value.top = restrictToBounds(
         keepDecimalsToNum(currentT),
-        min || 0,
+        min || eleMinHeight.value,
         max ||
           (isPercent.value ? 100 : state.parentInfo.height) -
             valIsNaN(autoDraggable.value.height, 0),
@@ -371,7 +407,7 @@ const mousemoveHandler = (event: MouseEvent) => {
       operator === 'add' ? w + valueAfterMove : w - valueAfterMove;
     autoDraggable.value.width = restrictToBounds(
       keepDecimalsToNum(currentW),
-      valIsNaN(props.minWidth, 0),
+      valIsNaN(props.minWidth, eleMinWidth.value),
       max,
       props.limitAreaForParent
     );
@@ -382,7 +418,7 @@ const mousemoveHandler = (event: MouseEvent) => {
           : h - valueAfterMove / state.rate;
       autoDraggable.value.height = restrictToBounds(
         keepDecimalsToNum(currentH),
-        valIsNaN(props.minHeight, 0),
+        valIsNaN(props.minHeight, eleMinHeight.value),
         ratioMax,
         props.limitAreaForParent
       );
@@ -398,7 +434,7 @@ const mousemoveHandler = (event: MouseEvent) => {
       operator === 'add' ? h + valueAfterMove : h - valueAfterMove;
     autoDraggable.value.height = restrictToBounds(
       keepDecimalsToNum(currentH),
-      valIsNaN(props.minHeight, 0),
+      valIsNaN(props.minHeight, eleMinHeight.value),
       max,
       props.limitAreaForParent
     );
@@ -409,7 +445,7 @@ const mousemoveHandler = (event: MouseEvent) => {
           : w - keepDecimalsToNum(valueAfterMove * state.rate);
       autoDraggable.value.width = restrictToBounds(
         keepDecimalsToNum(currentW),
-        valIsNaN(props.minWidth, 0),
+        valIsNaN(props.minWidth, eleMinWidth.value),
         ratioMax,
         props.limitAreaForParent
       );
@@ -426,8 +462,6 @@ const mousemoveHandler = (event: MouseEvent) => {
             const value = figureRatioMax(l + w, t + h, w, h);
             _w('sub', value[0], value[1]);
             // _t(t - (value[0] - w) / state.rate, t + h);
-            console.log(value);
-            console.log(t - (value[1] - h));
             _l(
               Math.max(0, l - (value[1] - h) * state.rate),
               l + w,
@@ -468,13 +502,16 @@ const mousemoveHandler = (event: MouseEvent) => {
         },
         // done
         bm: () => {
-          const value = figureRatioMax(
-            eleMaxWidth.value - l,
-            eleMaxHeight.value - t,
-            w,
-            h
-          );
-          _h('add', value[1], value[0]);
+          if (props.ratioLock) {
+            const value = figureRatioMax(
+              eleMaxWidth.value - l,
+              eleMaxHeight.value - t,
+              w,
+              h
+            );
+
+            _h('add', value[1], value[0]);
+          } else _h('add', eleMaxHeight.value - t);
         },
         // done
         bl: () => {
@@ -540,4 +577,3 @@ const mouseupHandler = (event: MouseEvent) => {
 <style scoped lang="scss">
 @import url('./styles/auto-draggable.scss');
 </style>
-@/types ./interface ./interface/type

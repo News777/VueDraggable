@@ -2,60 +2,65 @@
   touch-action: none; // CSS 属性 touch-action 用于设置触摸屏用户如何操纵元素的区域 (例如，浏览器内置的缩放功能)。
   position: absolute;
   box-sizing: border-box;
-  border-width: 2px;
+  border-width: 1px;
   border-style: solid;
-
+  outline: none;
+  :deep(img) {
+    pointer-events: none;
+  }
   .handle {
     box-sizing: border-box;
     position: absolute;
-    width: 8px;
-    height: 8px;
-    background: #ffffff;
-    border: 1px solid #333;
-    box-shadow: 0 0 2px #bbb;
+    width: 9px;
+    height: 9px;
+    background-color: #ffffff;
+    border-width: 2px;
+    border-style: solid;
+    border-radius: 50%;
+    z-index: 9999;
   }
   .handle-tl {
-    top: -5px;
-    left: -5px;
+    top: -6px;
+    left: -6px;
     cursor: nw-resize;
   }
   .handle-tm {
-    top: -5px;
-    left: calc(50% - 4px);
+    top: -6px;
+    left: calc(50% - 6.5px);
     /*margin-left: -5px;*/
     cursor: n-resize;
   }
   .handle-tr {
-    top: -5px;
-    right: -5px;
+    top: -6px;
+    right: -6px;
     cursor: ne-resize;
   }
   .handle-ml {
-    top: calc(50% - 4px);
+    top: calc(50% - 6.5px);
     /*margin-top: -5px;*/
-    left: -5px;
+    left: -6px;
     cursor: w-resize;
   }
   .handle-mr {
-    top: calc(50% - 4px);
+    top: calc(50% - 6.5px);
     /*margin-top: -5px;*/
-    right: -5px;
+    right: -6px;
     cursor: e-resize;
   }
   .handle-bl {
-    bottom: -5px;
-    left: -5px;
+    bottom: -6px;
+    left: -6px;
     cursor: sw-resize;
   }
   .handle-bm {
-    bottom: -5px;
-    left: calc(50% - 4px);
+    bottom: -6px;
+    left: calc(50% - 6.5px);
     /*margin-left: -5px;*/
     cursor: s-resize;
   }
   .handle-br {
-    bottom: -5px;
-    right: -5px;
+    bottom: -6px;
+    right: -6px;
     cursor: se-resize;
   }
 }

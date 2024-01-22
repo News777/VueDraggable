@@ -1,3 +1,5 @@
+import { PropType } from 'vue';
+
 export interface AutoDraggable {
   left: number | string;
   top: number | string;
@@ -6,10 +8,13 @@ export interface AutoDraggable {
   zIndex?: number;
 }
 
-export type ExtendsAutoDraggable = AutoDraggable & { [key: string]: any };
+export type ExtendsAutoDraggable = Required<Omit<AutoDraggable, 'zIndex'>> & {
+  [key: string]: any;
+};
 
-export interface AutoDraggableProps {
+export interface AutoDraggableProps<T> {
   theme?: string; // 主题色，默认#409EFD
+  inActiveColor?: string; // 失活颜色
   unitType?: 'px' | '%'; // 单位，默认px
   scale?: number | string; // 缩放比例，默认1
   isKeepDecimals?: boolean; // 是否保留小数，默认false
@@ -20,7 +25,9 @@ export interface AutoDraggableProps {
   // areaHeight?: number | string; // 父区域height 默认获取父元素height
   limitAreaForParent?: boolean; // 限制元素移动区域为父元素内，默认true
   limitAreaClass?: string;
-  modelValue: ExtendsAutoDraggable;
+  modelValue: Required<Omit<AutoDraggable, 'zIndex'>> & {
+    [key in keyof T]: any;
+  };
   maxWidth?: number | string;
   maxHeight?: number | string;
   minWidth?: number | string;

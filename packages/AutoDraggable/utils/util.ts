@@ -58,7 +58,7 @@ export function addEvent<K extends keyof GlobalEventHandlersEventMap>(
   handler: (this: HTMLElement, ev: GlobalEventHandlersEventMap[K]) => void
 ): void {
   if (!el) return;
-  el.addEventListener(event, handler as EventListener, false);
+  el.addEventListener(event, handler as EventListener, true);
 }
 
 export function removeEvent<K extends keyof GlobalEventHandlersEventMap>(
@@ -67,5 +67,5 @@ export function removeEvent<K extends keyof GlobalEventHandlersEventMap>(
   handler: (this: HTMLElement, ev: GlobalEventHandlersEventMap[K]) => void
 ): void {
   if (!el) return;
-  el.removeEventListener(event, handler as EventListener, false);
+  el.removeEventListener(event, handler as EventListener, true);
 }
