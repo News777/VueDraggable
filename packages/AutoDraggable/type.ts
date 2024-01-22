@@ -25,9 +25,7 @@ export interface AutoDraggableProps<T> {
   // areaHeight?: number | string; // 父区域height 默认获取父元素height
   limitAreaForParent?: boolean; // 限制元素移动区域为父元素内，默认true
   limitAreaClass?: string;
-  modelValue: Required<Omit<AutoDraggable, 'zIndex'>> & {
-    [key in keyof T]: any;
-  };
+  modelValue: Required<Omit<AutoDraggable, 'zIndex'>> & T;
   maxWidth?: number | string;
   maxHeight?: number | string;
   minWidth?: number | string;

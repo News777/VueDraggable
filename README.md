@@ -17,44 +17,48 @@ VueAutoDraggable 是一个 Vue 3 组件，提供拖拽和缩放功能，可以�
 - 可禁用文本选择，默认不禁用
 - 可自定义控制触点，默认为全套
 
-## Props
 
-下面是 AutoDraggable 组件可用的 props:
+## **Props:**
 
-```javascript
-{
-  theme: '#409EFD', // 主题色，默认 '#409EFD'
-  unitType: 'px', // 单位，默认 'px'
-  scale: 1, // 缩放比例，默认 1
-  isKeepDecimals: false, // 是否保留小数，默认 false
-  decimalPlaces: 2, // 保留几位小数, 默认 2 位
-  draggable: true, // 是否可以拖拽，默认 true
-  resizable: true, // 是否可缩放，默认 true
-  limitAreaForParent: true, // 限制移动区域为父元素内，默认 true
-  modelValue: { left: 0, top: 0, width: 0, height: 0, zIndex: 1 }, // 默认模型值
-  minWidth: 0, // 最小宽度
-  minHeight: 0, // 最小高度
-  handles: ['tl', 'tm', 'tr', 'mr', 'br', 'bm', 'bl', 'ml'], // 控制触点
-  // 其他你可能需要的 props...
-}
-```
+| Prop                 | Type                                          | Default   | Description                                                    |
+| -------------------- | --------------------------------------------- | --------- | -------------------------------------------------------------- |
+| `theme`              | `string`                                      | `#409EFD` | 主题色                                                         |
+| `inActiveColor`      | `string`                                      |           | 失活颜色                                                       |
+| `unitType`           | `'px' \| '%'`                                 | `'px'`    | 单位                                                           |
+| `scale`              | `number` \| `string`                          | `1`       | 缩放比例                                                       |
+| `isKeepDecimals`     | `boolean`                                     | `false`   | 是否保留小数                                                   |
+| `decimalPlaces`      | `number`                                      | `2`       | 保留几位小数                                                   |
+| `draggable`          | `boolean`                                     | `true`    | 是否可以移动                                                   |
+| `resizeable`         | `boolean`                                     | `true`    | 是否可以缩放                                                   |
+| `limitAreaForParent` | `boolean`                                     | `true`    | 限制元素移动区域为父元素内                                     |
+| `limitAreaClass`     | `string`                                      |           |                                                                |
+| `modelValue`         | `Required<Omit<AutoDraggable, 'zIndex'>> & T` |           | 必填，使用 `AutoDraggable` 像型但省略 `zIndex`，再加上类型 `T` |
+| `maxWidth`           | `number` \| `string`                          |           | 最大宽度                                                       |
+| `maxHeight`          | `number` \| `string`                          |           | 最大高度                                                       |
+| `minWidth`           | `number` \| `string`                          |           | 最小宽度                                                       |
+| `minHeight`          | `number` \| `string`                          |           | 最小高度                                                       |
+| `ratioLock`          | `boolean`                                     |           | 比例锁定                                                       |
+| `active`             | `boolean`                                     |           | 该组件是否活跃                                                 |
+| `disabledUserSelect` | `boolean`                                     | `false`   | 是否开启选择文本                                               |
+| `handles`            | `Array<HandlesSet[number]>`                   |           | 控制触点，默认全选                                             |
 
-## Events
 
-组件发出的事件：
+## **Emits:**
 
-- `update:modelValue`: 当 `modelValue` 改变时触发
-- `drag-start`: 拖动开始时触发
-- `drag-stop`: 拖动停止时触发
-- `resize-start`: 调整大小开始时触发
-- `resize-stop`: 调整大小停止时触发
-- `active`: 组件变为活跃状态时触发
-- `inactive`: 组件变为非活跃状态时触发
+| Event               | Payload                                                                         | Description              |
+| ------------------- | ------------------------------------------------------------------------------- | ------------------------ |
+| `update:modelValue` | `value: ExtendsAutoDraggable`                                                   | 用于更新 `modelValue`    |
+| `drag-start`        | `e: MouseEvent, value: ExtendsAutoDraggable`                                    | 开始拖动时触发           |
+| `drag-stop`         | `e: MouseEvent, oldValue: ExtendsAutoDraggable, newValue: ExtendsAutoDraggable` | 停止拖动时触发           |
+| `resize-start`      | `e: MouseEvent, value: ExtendsAutoDraggable`                                    | 开始调整大小时触发       |
+| `resize-stop`       | `e: MouseEvent, oldValu: ExtendsAutoDraggable, newValue: ExtendsAutoDraggable`  | 调整大小结束时触发       |
+| `active`            | `value: ExtendsAutoDraggable`                                                   | 组件变为活跃状态时触发   |
+| `inactive`          | `value: ExtendsAutoDraggable`                                                   | 组件变为非活跃状态时触发 |
 
 ## 安装
 
 ```bash
-npm install your-autodraggable-package-name
+pnpm install vue-auto-draggable
 ```
 
 ## 使用方式
@@ -64,21 +68,22 @@ npm install your-autodraggable-package-name
 ```vue
 <script setup>
 import { ref } from 'vue';
-import AutoDraggable from 'vue-auto-draggable';
+import { VueAutoDraggable } from 'vue-auto-draggable';
+import 'vue-auto-draggable/css'
 
 const draggableProps = ref({
-  // ...你的 props 定义
+  top: 0,
+  left: 0,
+  width: 200,
+  height: 100
 });
 
-const handleUpdateModelValue = (newValue) => {
-  // ...处理 modelValue 更新的逻辑
-};
 </script>
 
 <template>
-  <AutoDraggable v-model="draggableProps">
+  <VueAutoDraggable v-model="draggableProps">
     <!-- 你的可拖动内容 -->
-  </AutoDraggable>
+  </VueAutoDraggable>
 </template>
 ```
 
