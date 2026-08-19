@@ -241,7 +241,7 @@
             :min-width="config.minWidth"
             :min-height="config.minHeight"
             :max-width="config.maxWidth"
-            :max-height="config.maxWidth"
+            :max-height="config.maxHeight"
             :handles="currentHandles"
             :snap-to-grid="config.snapToGrid"
             :grid-size="config.gridSize"
@@ -293,9 +293,17 @@ import { MovableBox as VueMovableBox, type ExtendsMovableBox, type HandlesSet } 
 
 interface BoxData {
   uid: string;
-  data: ExtendsMovableBox;
+  data: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+    zIndex: number;
+  };
   color?: string;
 }
+
+const asNumber = (value: number | string | undefined, fallback = 0) => Number(value ?? fallback);
 
 // 方块数据
 const boxes = ref<BoxData[]>([
@@ -439,12 +447,12 @@ const duplicateBox = () => {
   const uid = `Box-${Date.now().toString().slice(-4)}`;
   boxes.value.push({
     uid,
-    data: { 
-      left: selectedBox.value.data.left + 30, 
-      top: selectedBox.value.data.top + 30, 
-      width: selectedBox.value.data.width, 
-      height: selectedBox.value.data.height, 
-      zIndex: boxes.value.length + 1 
+    data: {
+      left: asNumber(selectedBox.value.data.left) + 30,
+      top: asNumber(selectedBox.value.data.top) + 30,
+      width: asNumber(selectedBox.value.data.width),
+      height: asNumber(selectedBox.value.data.height),
+      zIndex: boxes.value.length + 1
     },
     color: selectedBox.value.color
   });
@@ -647,18 +655,23 @@ onMounted(() => {
     const step = 10;
     const [cw, ch] = canvasSize.value.split('x').map(Number);
     
+    const left = asNumber(box.data.left);
+    const top = asNumber(box.data.top);
+    const width = asNumber(box.data.width);
+    const height = asNumber(box.data.height);
+
     switch (e.key) {
       case 'ArrowUp':
-        box.data.top = Math.max(edgeDistance.value, box.data.top - step);
+        box.data.top = Math.max(edgeDistance.value, top - step);
         break;
       case 'ArrowDown':
-        box.data.top = Math.min(box.data.top + step, ch - box.data.height - edgeDistance.value);
+        box.data.top = Math.min(top + step, ch - height - edgeDistance.value);
         break;
       case 'ArrowLeft':
-        box.data.left = Math.max(edgeDistance.value, box.data.left - step);
+        box.data.left = Math.max(edgeDistance.value, left - step);
         break;
       case 'ArrowRight':
-        box.data.left = Math.min(box.data.left + step, cw - box.data.width - edgeDistance.value);
+        box.data.left = Math.min(left + step, cw - width - edgeDistance.value);
         break;
       case 'Escape':
         selectedUid.value = '';

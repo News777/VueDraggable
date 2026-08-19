@@ -21,7 +21,7 @@
     <!-- 拖拽手柄 - 根据 resizeDirections 过滤 -->
     <template v-for="handle in handles" :key="handle">
       <div
-        v-show="state.active && resizeable && !disabled && isHandleAllowed(handle)"
+        v-show="state.active && isResizable && !disabled && isHandleAllowed(handle)"
         class="handle"
         :class="'handle-' + handle"
         :style="HandleStyle"
@@ -62,6 +62,9 @@ interface MovableBoxProps<T> {
   isKeepDecimals?: boolean;
   decimalPlaces?: number;
   draggable?: boolean;
+  /** 是否可调整大小（推荐使用 resizable，兼容旧命名 resizeable） */
+  resizable?: boolean;
+  /** @deprecated 使用 resizable */
   resizeable?: boolean;
   limitAreaForParent?: boolean;
   limitAreaClass?: string;
@@ -122,6 +125,7 @@ import {
   deepClone,
   getEventCoords
 } from './utils';
+import { asNumber, clamp, createDefaultBox, createMovePayload } from './core/box-geometry';
 
 const props = withDefaults(defineProps<MovableBoxProps<any>>(), {
   theme: '#409EFD',
@@ -132,6 +136,7 @@ const props = withDefaults(defineProps<MovableBoxProps<any>>(), {
   decimalPlaces: 2,
   draggable: true,
   resizable: true,
+  resizeable: undefined,
   limitAreaForParent: true,
   disabledUserSelect: true,
   ratioLock: false,
@@ -169,6 +174,7 @@ const props = withDefaults(defineProps<MovableBoxProps<any>>(), {
 
 const emit = defineEmits<{
   (event: 'update:modelValue', value: ExtendsMovableBox): void;
+  (event: 'drag', value: ExtendsMovableBox): void;
   (event: 'drag-start', e: MouseEvent | TouchEvent, value: ExtendsMovableBox): void;
   (
     event: 'drag-stop',
@@ -212,7 +218,7 @@ const state = reactive<{
   isDragging: boolean;
   isResizing: boolean;
 }>({
-  beforeClickConfig: { top: 0, left: 0, width: 0, height: 0 },
+  beforeClickConfig: createDefaultBox(),
   initX: 0,
   initY: 0,
   parentElement: null,
@@ -270,11 +276,12 @@ const MovableBoxStyle = computed<CSSProperties>(() => ({
 }));
 
 const HandleStyle = computed<CSSProperties>(() => ({
-  borderColor: props.resizeable ? props.theme : props.inActiveColor,
+  borderColor: isResizable.value ? props.theme : props.inActiveColor,
   scale: keepDecimalsToNum(1 / valIsNaN(props.scale, 1), 1)
 }));
 
 const isPercent = computed(() => props.unitType === '%');
+const isResizable = computed(() => props.resizable ?? props.resizeable ?? true);
 
 const eleMaxWidth = computed(() => {
   const maxWidthProp = valIsNaN(props.maxWidth, 0);
@@ -378,8 +385,8 @@ const handleKeyDown = (event: KeyboardEvent) => {
 
   const step = props.keyboardStep || 1;
   let moved = false;
-  let newLeft = autoDraggable.value.left;
-  let newTop = autoDraggable.value.top;
+  let newLeft = asNumber(autoDraggable.value.left);
+  let newTop = asNumber(autoDraggable.value.top);
 
   switch (event.key) {
     case 'ArrowUp':
@@ -479,12 +486,12 @@ const startDrag = (event: MouseEvent | TouchEvent, handle: HandlesSet[number] | 
   if (props.initRect) return;
 
   // 必须是可拖拽或可调整状态
-  if (!props.draggable && !props.resizeable) return;
+  if (!props.draggable && !isResizable.value) return;
 
   // 如果没有 handle，必须可拖拽
   if (!handle && !props.draggable) return;
   // 如果有 handle，必须可调整
-  if (handle && !props.resizeable) return;
+  if (handle && !isResizable.value) return;
 
   const { x, y } = getEventCoords(event);
 
@@ -503,7 +510,7 @@ const startDrag = (event: MouseEvent | TouchEvent, handle: HandlesSet[number] | 
     emit('drag-start', event, state.beforeClickConfig);
   }
 
-  if (props.resizeable && handle) {
+  if (isResizable.value && handle) {
     state.isResizing = true;
     emit('resize-start', event, state.beforeClickConfig);
   }
@@ -616,13 +623,11 @@ const doDrag = (event: MouseEvent | TouchEvent) => {
         props.limitAreaForParent
       );
 
+      const movePayload = createMovePayload(autoDraggable.value) as ExtendsMovableBox;
+
       // 减少 emit 频率，只传递必要数据，不 deepClone
-      emit('move', {
-        left: autoDraggable.value.left,
-        top: autoDraggable.value.top,
-        width: autoDraggable.value.width,
-        height: autoDraggable.value.height
-      } as ExtendsMovableBox);
+      emit('move', movePayload);
+      emit('drag', movePayload);
     }
 
     // 处理缩放
@@ -891,20 +896,28 @@ const updateHeight = (value: number, max: number) => {
 };
 
 const updateLeft = (value: number) => {
-  autoDraggable.value.left = restrictToBounds(
-    keepDecimalsToNum(value),
+  autoDraggable.value.left = clamp(
+    restrictToBounds(
+      keepDecimalsToNum(value),
+      eleMinWidth.value,
+      isPercent.value ? 100 : state.parentInfo.width - valIsNaN(autoDraggable.value.width, 0),
+      props.limitAreaForParent
+    ),
     eleMinWidth.value,
-    isPercent.value ? 100 : state.parentInfo.width - valIsNaN(autoDraggable.value.width, 0),
-    props.limitAreaForParent
+    isPercent.value ? 100 : state.parentInfo.width - valIsNaN(autoDraggable.value.width, 0)
   );
 };
 
 const updateTop = (value: number) => {
-  autoDraggable.value.top = restrictToBounds(
-    keepDecimalsToNum(value),
+  autoDraggable.value.top = clamp(
+    restrictToBounds(
+      keepDecimalsToNum(value),
+      eleMinHeight.value,
+      isPercent.value ? 100 : state.parentInfo.height - valIsNaN(autoDraggable.value.height, 0),
+      props.limitAreaForParent
+    ),
     eleMinHeight.value,
-    isPercent.value ? 100 : state.parentInfo.height - valIsNaN(autoDraggable.value.height, 0),
-    props.limitAreaForParent
+    isPercent.value ? 100 : state.parentInfo.height - valIsNaN(autoDraggable.value.height, 0)
   );
 };
 
@@ -942,7 +955,7 @@ const endDrag = (event: MouseEvent | TouchEvent) => {
     emit('drag-stop', event, state.beforeClickConfig, { ...autoDraggable.value });
   }
 
-  if (props.resizeable && state.isResizing) {
+  if (isResizable.value && state.isResizing) {
     emit('resize-stop', event, state.beforeClickConfig, { ...autoDraggable.value });
   }
 
@@ -981,13 +994,7 @@ defineExpose<MovableBoxExpose>({
     autoDraggable.value.height = height;
   },
   reset: () => {
-    autoDraggable.value = {
-      left: 0,
-      top: 0,
-      width: 200,
-      height: 100,
-      zIndex: 1
-    };
+    autoDraggable.value = createDefaultBox();
   },
   activate: () => {
     state.active = true;
@@ -1019,6 +1026,220 @@ onUnmounted(() => {
 getParentAndRect();
 </script>
 
-<style scoped lang="scss">
-@import url('./style.scss');
+<style scoped>
+:root {
+  --movable-box-border-color: #dcdfe6;
+  --movable-box-handle-bg: #ffffff;
+  --movable-box-handle-border: #409efd;
+  --movable-box-active-shadow: rgba(64, 158, 255, 0.2);
+  --movable-box-dragging-shadow: rgba(0, 0, 0, 0.15);
+  --movable-box-cursor-grab: grab;
+  --movable-box-cursor-grabbing: grabbing;
+}
+
+.auto-draggable {
+  touch-action: none;
+  position: absolute;
+  box-sizing: border-box;
+  border-width: 1px;
+  border-style: solid;
+  outline: none;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.auto-draggable :deep(img) {
+  pointer-events: none;
+}
+
+.auto-draggable :deep(video) {
+  pointer-events: none;
+}
+
+.auto-draggable :deep(*) {
+  pointer-events: auto;
+}
+
+.auto-draggable.is-disabled {
+  cursor: not-allowed !important;
+  opacity: 0.6;
+}
+
+.auto-draggable.is-disabled .handle {
+  display: none !important;
+}
+
+.auto-draggable.is-active {
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
+}
+
+.auto-draggable.is-active:hover {
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.3);
+}
+
+.auto-draggable.is-dragging {
+  cursor: move !important;
+  opacity: 0.9;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 9999 !important;
+}
+
+.auto-draggable.is-resizing {
+  opacity: 0.95;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.auto-draggable.is-readonly {
+  cursor: default;
+}
+
+.auto-draggable.is-readonly .handle {
+  display: none !important;
+}
+
+.handle {
+  box-sizing: border-box;
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background-color: #ffffff;
+  border-width: 2px;
+  border-style: solid;
+  border-radius: 50%;
+  z-index: 9999;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.handle:hover {
+  transform: scale(1.2);
+  background-color: #f0f9ff;
+}
+
+.handle:active {
+  transform: scale(1.1);
+  background-color: #e6f7ff;
+}
+
+.handle-tl {
+  top: -5px;
+  left: -5px;
+  cursor: nw-resize;
+}
+
+.handle-tm {
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: n-resize;
+}
+
+.handle-tm:hover {
+  transform: translateX(-50%) scale(1.2);
+}
+
+.handle-tr {
+  top: -5px;
+  right: -5px;
+  cursor: ne-resize;
+}
+
+.handle-ml {
+  top: 50%;
+  left: -5px;
+  transform: translateY(-50%);
+  cursor: w-resize;
+}
+
+.handle-ml:hover {
+  transform: translateY(-50%) scale(1.2);
+}
+
+.handle-mr {
+  top: 50%;
+  right: -5px;
+  transform: translateY(-50%);
+  cursor: e-resize;
+}
+
+.handle-mr:hover {
+  transform: translateY(-50%) scale(1.2);
+}
+
+.handle-bl {
+  bottom: -5px;
+  left: -5px;
+  cursor: sw-resize;
+}
+
+.handle-bm {
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: s-resize;
+}
+
+.handle-bm:hover {
+  transform: translateX(-50%) scale(1.2);
+}
+
+.handle-br {
+  bottom: -5px;
+  right: -5px;
+  cursor: se-resize;
+}
+
+.select-none {
+  user-select: none;
+  -moz-user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+}
+
+[dir="rtl"] .handle-tl {
+  left: auto;
+  right: -5px;
+}
+
+[dir="rtl"] .handle-tr {
+  left: -5px;
+  right: auto;
+}
+
+[dir="rtl"] .handle-ml {
+  left: auto;
+  right: -5px;
+}
+
+[dir="rtl"] .handle-mr {
+  left: -5px;
+  right: auto;
+}
+
+[dir="rtl"] .handle-bl {
+  left: auto;
+  right: -5px;
+}
+
+[dir="rtl"] .handle-br {
+  left: -5px;
+  right: auto;
+}
+
+.is-active {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(64, 158, 255, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(64, 158, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(64, 158, 255, 0);
+  }
+}
 </style>

@@ -38,6 +38,7 @@ export default defineConfig({
     rollupOptions: {
       external: ['vue', 'decimal.js'],
       output: {
+        exports: 'named',
         globals: {
           vue: 'Vue',
           'decimal.js': 'Decimal',

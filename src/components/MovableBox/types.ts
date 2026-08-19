@@ -10,6 +10,14 @@ export interface MovableBoxRect {
   zIndex?: number;
 }
 
+export interface MovableBoxRectNumber {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  zIndex?: number;
+}
+
 export interface BoundsMargin {
   top?: number;
   right?: number;

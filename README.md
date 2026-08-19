@@ -84,7 +84,8 @@ Visit http://localhost:5173 for the interactive demo.
 | `isKeepDecimals` | `boolean` | `false` | Keep decimal places |
 | `decimalPlaces` | `number` | `2` | Decimal places to keep |
 | `draggable` | `boolean` | `true` | Enable dragging |
-| `resizable` | `boolean` | `true` | Enable resizing |
+| `resizable` | `boolean` | `true` | Enable resizing (preferred name) |
+| `resizeable` | `boolean` | `true` | Deprecated alias of `resizable` for backward compatibility |
 | `limitAreaForParent` | `boolean` | `true` | Limit to parent element |
 | `limitAreaClass` | `string` | - | Custom constraint area CSS selector |
 | `maxWidth` | `number \| string` | - | Maximum width |
@@ -148,7 +149,7 @@ interface MovableBoxRect {
 | `disabled` | `(value: boolean)` | Disabled state changed |
 | `dblclick` | `(event: MouseEvent)` | Double click |
 | `out-of-bounds` | `(direction: 'left' \| 'top' \| 'right' \| 'bottom')` | Out of bounds |
-| `move` | `(value: MovableBoxRect)` | Same as `drag`, deprecated |
+| `move` | `(value: MovableBoxRect)` | Deprecated alias of `drag` for backward compatibility |
 
 ### Methods
 

@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.6] - 2026-08-19
+
+### Changed
+- 调整发布版本为 `1.1.6`
+- 统一版本声明与包信息，确保发布内容与源码一致
+
+### Fixed
+- 统一了公开 API：`resizable` 为首选名称，`resizeable` 仍保留兼容别名
+- 修正类型和示例代码中的数值计算问题，避免字符串/数字混用导致的 TS 报错
+- 清理了 sass 相关 warning，并移除无用的 Sass 依赖
+- 调整了构建输出和文档状态，保证发布包与源码一致
+
+### Added
+- 加入 Vitest + Vue Test Utils 的真实交互测试，覆盖拖拽与缩放基础行为
+- 增加基础发布前校验脚本，确保 `test` + `build` 运行顺序清晰
+
+---
+
 ## [1.1.5-beta.3] - 2026-03-10
 
 ### Added

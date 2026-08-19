@@ -35,7 +35,9 @@ export interface MovableBoxProps<T> {
   decimalPlaces?: number;
   /** 是否可拖拽 */
   draggable?: boolean;
-  /** 是否可调整大小 */
+  /** 是否可调整大小（推荐） */
+  resizable?: boolean;
+  /** @deprecated 使用 resizable */
   resizeable?: boolean;
   /** 是否限制在父元素内 */
   limitAreaForParent?: boolean;
