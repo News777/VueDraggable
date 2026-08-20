@@ -1,114 +1,165 @@
-// 碰撞检测 composable
 import { ref } from 'vue';
-import { checkCollision, preventCollision, type CollisionResult } from '../utils/collision';
-import type { MovableBoxRect } from '../types';
+import {
+  checkAllCollisions,
+  findFirstCollisionPathInterval,
+  getDominantCollision,
+  getTotalOverlapArea,
+  type CollisionResult
+} from '../utils/collision';
+import type { SnapTarget } from '../types';
 
 interface UseCollisionOptions {
   enabled: boolean;
   allowOverlap: boolean;
 }
 
-export function useCollision(
-  options: UseCollisionOptions,
-  getCurrentRect: () => { left: number; top: number; width: number; height: number },
-  setPosition: (left: number, top: number) => void,
-  getBounds: () => { minLeft: number; maxLeft: number; minTop: number; maxTop: number }
-) {
+interface NumericRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+type CollisionResolution = 'path' | 'slide';
+
+const interpolateRect = (from: NumericRect, to: NumericRect, progress: number): NumericRect => ({
+  left: from.left + (to.left - from.left) * progress,
+  top: from.top + (to.top - from.top) * progress,
+  width: from.width + (to.width - from.width) * progress,
+  height: from.height + (to.height - from.height) * progress
+});
+
+const sameRect = (first: NumericRect, second: NumericRect) =>
+  first.left === second.left &&
+  first.top === second.top &&
+  first.width === second.width &&
+  first.height === second.height;
+
+const resolveAlongPath = (
+  previous: NumericRect,
+  candidate: NumericRect,
+  targets: SnapTarget[],
+  normalize: (rect: NumericRect) => NumericRect
+) => {
+  if (!findFirstCollisionPathInterval(previous, candidate, targets)) return candidate;
+
+  let lower = 0;
+  let upper = 1;
+  let resolved = previous;
+  for (let iteration = 0; iteration < 24; iteration += 1) {
+    const progress = (lower + upper) / 2;
+    const current = normalize(interpolateRect(previous, candidate, progress));
+    if (!findFirstCollisionPathInterval(previous, current, targets)) {
+      resolved = current;
+      lower = progress;
+    } else {
+      upper = progress;
+    }
+  }
+  return resolved;
+};
+
+export function useCollision(getOptions: () => UseCollisionOptions) {
   const collisions = ref<CollisionResult[]>([]);
   const isColliding = ref(false);
 
-  // 检测碰撞
-  const detectCollisions = (targets: MovableBoxRect[]): CollisionResult[] => {
-    if (!options.enabled || targets.length === 0) {
-      collisions.value = [];
-      isColliding.value = false;
-      return [];
-    }
-
-    const current = getCurrentRect();
-    const results: CollisionResult[] = [];
-
-    for (const target of targets) {
-      const rect2 = {
-        left: Number(target.left),
-        top: Number(target.top),
-        width: Number(target.width),
-        height: Number(target.height)
-      };
-
-      const result = checkCollision(current, rect2);
-      if (result.colliding) {
-        results.push(result);
-      }
-    }
-
+  const evaluate = (rect: NumericRect, targets: SnapTarget[]) => {
+    const options = getOptions();
+    const results = options.enabled ? checkAllCollisions(rect, targets) : [];
     collisions.value = results;
     isColliding.value = results.length > 0;
-
-    return results;
+    return {
+      results,
+      dominant: getDominantCollision(results),
+      totalOverlapArea: getTotalOverlapArea(results)
+    };
   };
 
-  // 防止碰撞 - 调整位置
-  const resolveCollision = (targets: MovableBoxRect[]): void => {
-    if (!options.enabled || options.allowOverlap || targets.length === 0) return;
+  const setCollisionResults = (results: CollisionResult[]) => {
+    collisions.value = results;
+    isColliding.value = results.length > 0;
+    return {
+      results,
+      dominant: getDominantCollision(results),
+      totalOverlapArea: getTotalOverlapArea(results)
+    };
+  };
 
-    const current = getCurrentRect();
-    const bounds = getBounds();
-
-    const rects = targets.map(t => ({
-      left: Number(t.left),
-      top: Number(t.top),
-      width: Number(t.width),
-      height: Number(t.height)
-    }));
-
-    const newPos = preventCollision(current, rects, bounds);
-
-    if (newPos.left !== current.left || newPos.top !== current.top) {
-      setPosition(newPos.left, newPos.top);
+  const resolveCandidate = (
+    candidate: NumericRect,
+    previous: NumericRect,
+    targets: SnapTarget[],
+    normalize: (rect: NumericRect) => NumericRect = rect => rect,
+    resolution: CollisionResolution = 'path'
+  ) => {
+    const options = getOptions();
+    const candidateState = evaluate(candidate, targets);
+    if (!options.enabled || options.allowOverlap) {
+      return { accepted: true, rect: candidate, ...candidateState };
     }
-  };
 
-  // 检测即将发生的碰撞（预测）
-  const predictCollision = (
-    newLeft: number,
-    newTop: number,
-    targets: MovableBoxRect[]
-  ): CollisionResult | null => {
-    if (!options.enabled || targets.length === 0) return null;
-
-    const current = getCurrentRect();
-    const predicted = { ...current, left: newLeft, top: newTop };
-
-    for (const target of targets) {
-      const rect2 = {
-        left: Number(target.left),
-        top: Number(target.top),
-        width: Number(target.width),
-        height: Number(target.height)
+    const previousResults = checkAllCollisions(previous, targets);
+    const previousOverlap = getTotalOverlapArea(previousResults);
+    if (previousOverlap > 0) {
+      return {
+        accepted: candidateState.totalOverlapArea < previousOverlap,
+        rect: candidate,
+        ...candidateState
       };
+    }
 
-      const result = checkCollision(predicted, rect2);
-      if (result.colliding) {
-        return result;
+    const pathInterval = findFirstCollisionPathInterval(previous, candidate, targets);
+    if (candidateState.results.length === 0 && !pathInterval) {
+      return { accepted: true, rect: candidate, ...candidateState };
+    }
+
+    let collisionState = candidateState;
+    if (candidateState.results.length === 0 && pathInterval) {
+      const witness = interpolateRect(
+        previous,
+        candidate,
+        pathInterval.entry + (pathInterval.exit - pathInterval.entry) * 0.001
+      );
+      collisionState = setCollisionResults(checkAllCollisions(witness, targets));
+    }
+
+    let resolved: NumericRect | null = null;
+    if (resolution === 'slide') {
+      const horizontal = resolveAlongPath(
+        previous,
+        { ...previous, left: candidate.left },
+        targets,
+        normalize
+      );
+      const vertical = resolveAlongPath(
+        previous,
+        { ...previous, top: candidate.top },
+        targets,
+        normalize
+      );
+      const sliding = normalize({
+        ...candidate,
+        left: horizontal.left,
+        top: vertical.top
+      });
+      if (!findFirstCollisionPathInterval(previous, sliding, targets)) {
+        resolved = sliding;
       }
     }
 
-    return null;
+    resolved ??= resolveAlongPath(previous, candidate, targets, normalize);
+
+    return {
+      accepted: !sameRect(resolved, previous),
+      rect: resolved,
+      ...collisionState
+    };
   };
 
-  // 清除碰撞状态
   const clearCollisions = () => {
     collisions.value = [];
     isColliding.value = false;
   };
 
-  return {
-    collisions,
-    isColliding,
-    detectCollisions,
-    resolveCollision,
-    predictCollision,
-    clearCollisions
-  };
+  return { collisions, isColliding, evaluate, resolveCandidate, clearCollisions };
 }

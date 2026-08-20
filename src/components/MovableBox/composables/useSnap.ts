@@ -1,52 +1,46 @@
-// 对齐吸附 composable
 import { ref } from 'vue';
-import { snapToElements, getSnapGuides, type SnapResult } from '../utils/snap';
-import type { MovableBoxRect } from '../types';
+import { snapToElements, type SnapAxes, type SnapResult } from '../utils/snap';
+import type { GuidesEventPayload, SnapTarget } from '../types';
 
 interface UseSnapOptions {
-  snapToGrid: boolean;
-  gridSize: number;
-  snapToElements: boolean;
-  snapThreshold: number;
+  enabled: boolean;
+  threshold: number;
 }
 
-export function useSnap(
-  options: UseSnapOptions,
-  getCurrentRect: () => { left: number; top: number; width: number; height: number },
-  setPosition: (left: number, top: number) => void
-) {
-  const guides = ref<{ vertical: number[]; horizontal: number[] }>({ vertical: [], horizontal: [] });
+const emptyGuides = (): GuidesEventPayload => ({ vertical: [], horizontal: [] });
+
+export function useSnap(getOptions: () => UseSnapOptions) {
+  const guides = ref<GuidesEventPayload>(emptyGuides());
   const lastSnapResult = ref<SnapResult | null>(null);
 
-  // 执行对齐吸附
-  const applySnap = (targets: MovableBoxRect[]): void => {
-    if (!options.snapToElements || targets.length === 0) return;
-
-    const current = getCurrentRect();
-    const result = snapToElements(current, targets, options.snapThreshold);
-
-    if (result.snapped) {
-      setPosition(result.left, result.top);
-      lastSnapResult.value = result;
-      
-      // 更新辅助线
-      guides.value = getSnapGuides(current, targets, options.snapThreshold);
-    } else {
-      guides.value = { vertical: [], horizontal: [] };
-      lastSnapResult.value = null;
-    }
+  const resolveSnap = (
+    current: { left: number; top: number; width: number; height: number },
+    targets: SnapTarget[],
+    axes?: SnapAxes
+  ): SnapResult => {
+    const options = getOptions();
+    const result = options.enabled
+      ? snapToElements(current, targets, options.threshold, axes)
+      : {
+          ...current,
+          snapped: false,
+          points: [],
+          targetIds: {},
+          guides: emptyGuides()
+        };
+    guides.value = result.guides;
+    lastSnapResult.value = result.snapped ? result : null;
+    return result;
   };
 
-  // 清除辅助线
   const clearGuides = () => {
-    guides.value = { vertical: [], horizontal: [] };
+    guides.value = emptyGuides();
     lastSnapResult.value = null;
   };
 
-  return {
-    guides,
-    lastSnapResult,
-    applySnap,
-    clearGuides
+  const setGuides = (value: GuidesEventPayload) => {
+    guides.value = value;
   };
+
+  return { guides, lastSnapResult, resolveSnap, clearGuides, setGuides };
 }

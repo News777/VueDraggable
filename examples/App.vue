@@ -80,6 +80,18 @@
           <input type="number" v-model.number="config.gridSize" min="5" max="100" />
         </div>
         <div class="control-row">
+          <label>元素吸附:</label>
+          <input type="checkbox" v-model="config.snapToElements" />
+        </div>
+        <div class="control-row">
+          <label>碰撞检测:</label>
+          <input type="checkbox" v-model="config.collisionEnabled" />
+        </div>
+        <div class="control-row" v-if="config.collisionEnabled">
+          <label>允许重叠:</label>
+          <input type="checkbox" v-model="config.allowOverlap" />
+        </div>
+        <div class="control-row">
           <label>保留小数:</label>
           <input type="checkbox" v-model="config.isKeepDecimals" />
         </div>
@@ -156,10 +168,30 @@
         </div>
         <div class="control-row">
           <label>边界边距:</label>
-          <input type="number" v-model.number="boundsMargin.top" placeholder="上" style="width:50px" />
-          <input type="number" v-model.number="boundsMargin.right" placeholder="右" style="width:50px" />
-          <input type="number" v-model.number="boundsMargin.bottom" placeholder="下" style="width:50px" />
-          <input type="number" v-model.number="boundsMargin.left" placeholder="左" style="width:50px" />
+          <input
+            v-model.number="boundsMargin.top"
+            type="number"
+            placeholder="上"
+            style="width: 50px"
+          />
+          <input
+            v-model.number="boundsMargin.right"
+            type="number"
+            placeholder="右"
+            style="width: 50px"
+          />
+          <input
+            v-model.number="boundsMargin.bottom"
+            type="number"
+            placeholder="下"
+            style="width: 50px"
+          />
+          <input
+            v-model.number="boundsMargin.left"
+            type="number"
+            placeholder="左"
+            style="width: 50px"
+          />
         </div>
       </div>
 
@@ -224,7 +256,7 @@
             v-for="box in boxes"
             :key="box.uid"
             v-model="box.data"
-            :ref="(el: any) => setBoxRef(el, box.uid)"
+            :ref="el => setBoxRef(el, box.uid)"
             :scale="scale"
             :active="selectedUid === box.uid"
             :theme="themeColor"
@@ -245,6 +277,14 @@
             :handles="currentHandles"
             :snap-to-grid="config.snapToGrid"
             :grid-size="config.gridSize"
+            :snap-to-elements="config.snapToElements"
+            :snap-threshold="10"
+            :collision-enabled="config.collisionEnabled"
+            :allow-overlap="config.allowOverlap"
+            :snap-targets="getSnapTargets(box.uid)"
+            :edge-distance="edgeDistance"
+            :drag-directions="currentDragDirections"
+            :resize-directions="currentResizeDirections"
             :enable-transition="config.enableTransition"
             :keyboard-enabled="config.keyboardEnabled"
             :disabled-user-select="config.disabledUserSelect"
@@ -255,17 +295,25 @@
             @resize-start="onResizeStart"
             @resize="onResize"
             @resize-stop="onResizeStop"
-            @active="onActive"
-            @inactive="onInactive"
+            @active="onActive(box.uid)"
+            @inactive="onInactive(box.uid)"
             @dblclick="onDoubleClick"
             @out-of-bounds="onOutOfBounds"
+            @snap="onSnap"
+            @guides="onGuides"
             @collision="onCollision"
           >
             <div class="box-content">
               <div class="box-title">📦 {{ box.uid }}</div>
               <div class="box-info">
-                <div>位置: {{ Math.round(Number(box.data.left)) }}, {{ Math.round(Number(box.data.top)) }}</div>
-                <div>尺寸: {{ Math.round(Number(box.data.width)) }} × {{ Math.round(Number(box.data.height)) }}</div>
+                <div>
+                  位置: {{ Math.round(Number(box.data.left)) }},
+                  {{ Math.round(Number(box.data.top)) }}
+                </div>
+                <div>
+                  尺寸: {{ Math.round(Number(box.data.width)) }} ×
+                  {{ Math.round(Number(box.data.height)) }}
+                </div>
               </div>
             </div>
           </VueMovableBox>
@@ -288,8 +336,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, nextTick, onMounted } from 'vue';
-import { MovableBox as VueMovableBox, type ExtendsMovableBox, type HandlesSet } from '../src';
+import { ref, reactive, computed } from 'vue';
+import {
+  MovableBox as VueMovableBox,
+  type CollisionEventPayload,
+  type DragDirection,
+  type ExtendsMovableBox,
+  type GuidesEventPayload,
+  type HandlePosition,
+  type HandlesSet,
+  type MovableBoxExpose,
+  type SnapEventPayload,
+  type SnapTarget
+} from '../src';
 
 interface BoxData {
   uid: string;
@@ -307,13 +366,25 @@ const asNumber = (value: number | string | undefined, fallback = 0) => Number(va
 
 // 方块数据
 const boxes = ref<BoxData[]>([
-  { uid: 'Box-1', data: { left: 50, top: 50, width: 200, height: 150, zIndex: 1 }, color: '#409eff' },
-  { uid: 'Box-2', data: { left: 300, top: 100, width: 250, height: 200, zIndex: 2 }, color: '#67c23a' },
-  { uid: 'Box-3', data: { left: 600, top: 80, width: 180, height: 180, zIndex: 3 }, color: '#e6a23c' },
+  {
+    uid: 'Box-1',
+    data: { left: 50, top: 50, width: 200, height: 150, zIndex: 1 },
+    color: '#409eff'
+  },
+  {
+    uid: 'Box-2',
+    data: { left: 300, top: 100, width: 250, height: 200, zIndex: 2 },
+    color: '#67c23a'
+  },
+  {
+    uid: 'Box-3',
+    data: { left: 600, top: 80, width: 180, height: 180, zIndex: 3 },
+    color: '#e6a23c'
+  }
 ]);
 
 // 组件引用
-const boxRefs = new Map<string, any>();
+const boxRefs = new Map<string, MovableBoxExpose>();
 
 // 画布设置
 const canvasSize = ref('1280x800');
@@ -333,6 +404,9 @@ const config = reactive({
   keyboardEnabled: false,
   snapToGrid: false,
   gridSize: 20,
+  snapToElements: false,
+  collisionEnabled: false,
+  allowOverlap: false,
   isKeepDecimals: true,
   decimalPlaces: 2,
   disabledUserSelect: true,
@@ -362,13 +436,31 @@ const handlesMap: Record<string, Array<HandlesSet[number]>> = {
   edges: ['tm', 'mr', 'bm', 'ml'],
   'tl-br': ['tl', 'br'],
   'br': ['br'],
-  none: [],
+  none: []
 };
 const currentHandles = computed(() => handlesMap[handlesMode.value]);
 
 // 拖拽/缩放方向
 const dragDirections = ref('all');
 const resizeDirections = ref('all');
+const dragDirectionMap: Record<string, DragDirection[]> = {
+  all: ['top', 'bottom', 'left', 'right'],
+  horizontal: ['left', 'right'],
+  vertical: ['top', 'bottom']
+};
+const resizeDirectionMap: Record<string, HandlePosition[]> = {
+  all: ['tl', 'tm', 'tr', 'mr', 'br', 'bm', 'bl', 'ml'],
+  horizontal: ['ml', 'mr'],
+  vertical: ['tm', 'bm'],
+  corners: ['tl', 'tr', 'br', 'bl']
+};
+const currentDragDirections = computed(() => dragDirectionMap[dragDirections.value]);
+const currentResizeDirections = computed(() => resizeDirectionMap[resizeDirections.value]);
+
+const getSnapTargets = (uid: string): SnapTarget[] =>
+  boxes.value
+    .filter(box => box.uid !== uid)
+    .map(box => ({ id: box.uid, ...box.data }));
 
 // 选中状态
 const selectedUid = ref<string>('Box-1');
@@ -406,8 +498,9 @@ const canvasInnerStyle = computed(() => {
 });
 
 // 设置引用
-const setBoxRef = (el: any, uid: string) => {
-  if (el) boxRefs.set(uid, el);
+const setBoxRef = (el: unknown, uid: string) => {
+  if (el) boxRefs.set(uid, el as MovableBoxExpose);
+  else boxRefs.delete(uid);
 };
 
 // 添加方块
@@ -499,7 +592,7 @@ const sendToBack = () => {
 const callSetPosition = () => {
   const ref = boxRefs.get(selectedUid.value);
   if (ref) {
-    ref.setPosition?.(200 as any, 200 as any);
+    ref.setPosition(200, 200);
     addLog('setPosition', `已移动到 (200, 200)`, 'success');
   }
 };
@@ -508,7 +601,7 @@ const callSetPosition = () => {
 const callSetSize = () => {
   const ref = boxRefs.get(selectedUid.value);
   if (ref) {
-    ref.setSize?.(300 as any, 200 as any);
+    ref.setSize(300, 200);
     addLog('setSize', `已设置尺寸为 300 x 200`, 'success');
   }
 };
@@ -556,11 +649,31 @@ const loadTemplate = (type: string) => {
   
   if (type === 'dashboard') {
     boxes.value = [
-      { uid: 'Sidebar', data: { left: 0, top: 0, width: 200, height: h, zIndex: 1 }, color: '#2c3e50' },
-      { uid: 'Header', data: { left: 200, top: 0, width: w - 200, height: 60, zIndex: 2 }, color: '#34495e' },
-      { uid: 'Chart1', data: { left: 220, top: 80, width: 300, height: 200, zIndex: 3 }, color: '#409eff' },
-      { uid: 'Chart2', data: { left: 540, top: 80, width: 300, height: 200, zIndex: 4 }, color: '#67c23a' },
-      { uid: 'Table', data: { left: 220, top: 300, width: 620, height: 300, zIndex: 5 }, color: '#e6a23c' },
+      {
+        uid: 'Sidebar',
+        data: { left: 0, top: 0, width: 200, height: h, zIndex: 1 },
+        color: '#2c3e50'
+      },
+      {
+        uid: 'Header',
+        data: { left: 200, top: 0, width: w - 200, height: 60, zIndex: 2 },
+        color: '#34495e'
+      },
+      {
+        uid: 'Chart1',
+        data: { left: 220, top: 80, width: 300, height: 200, zIndex: 3 },
+        color: '#409eff'
+      },
+      {
+        uid: 'Chart2',
+        data: { left: 540, top: 80, width: 300, height: 200, zIndex: 4 },
+        color: '#67c23a'
+      },
+      {
+        uid: 'Table',
+        data: { left: 220, top: 300, width: 620, height: 300, zIndex: 5 },
+        color: '#e6a23c'
+      }
     ];
   } else if (type === 'gallery') {
     boxes.value = Array.from({ length: 6 }, (_, i) => ({
@@ -576,11 +689,31 @@ const loadTemplate = (type: string) => {
     }));
   } else if (type === 'form') {
     boxes.value = [
-      { uid: 'Title', data: { left: 50, top: 50, width: 400, height: 50, zIndex: 1 }, color: '#fff' },
-      { uid: 'Input-1', data: { left: 50, top: 120, width: 400, height: 40, zIndex: 2 }, color: '#fff' },
-      { uid: 'Input-2', data: { left: 50, top: 180, width: 400, height: 40, zIndex: 3 }, color: '#fff' },
-      { uid: 'Textarea', data: { left: 50, top: 240, width: 400, height: 100, zIndex: 4 }, color: '#fff' },
-      { uid: 'Button', data: { left: 50, top: 360, width: 120, height: 40, zIndex: 5 }, color: '#409eff' },
+      {
+        uid: 'Title',
+        data: { left: 50, top: 50, width: 400, height: 50, zIndex: 1 },
+        color: '#fff'
+      },
+      {
+        uid: 'Input-1',
+        data: { left: 50, top: 120, width: 400, height: 40, zIndex: 2 },
+        color: '#fff'
+      },
+      {
+        uid: 'Input-2',
+        data: { left: 50, top: 180, width: 400, height: 40, zIndex: 3 },
+        color: '#fff'
+      },
+      {
+        uid: 'Textarea',
+        data: { left: 50, top: 240, width: 400, height: 100, zIndex: 4 },
+        color: '#fff'
+      },
+      {
+        uid: 'Button',
+        data: { left: 50, top: 360, width: 120, height: 40, zIndex: 5 },
+        color: '#409eff'
+      }
     ];
   }
   
@@ -589,50 +722,49 @@ const loadTemplate = (type: string) => {
 };
 
 // 事件处理
-const onDragStart = (event: MouseEvent | TouchEvent, value: ExtendsMovableBox) => {
+const onDragStart = (_event: MouseEvent | TouchEvent, _value: ExtendsMovableBox) => {
   addLog('drag-start', `开始拖拽: ${selectedUid.value}`, 'drag');
 };
 
-const onDrag = (value: ExtendsMovableBox) => {
+const onDrag = (_value: ExtendsMovableBox) => {
   // 实时拖拽事件，频繁触发
 };
 
-const onDragStop = (event: MouseEvent | TouchEvent, oldValue: ExtendsMovableBox, newValue: ExtendsMovableBox) => {
+const onDragStop = (
+  _event: MouseEvent | TouchEvent,
+  _oldValue: ExtendsMovableBox,
+  _newValue: ExtendsMovableBox
+) => {
   addLog('drag-stop', `拖拽结束: ${selectedUid.value}`, 'success');
 };
 
-const onResizeStart = (event: MouseEvent | TouchEvent, value: ExtendsMovableBox) => {
+const onResizeStart = (_event: MouseEvent | TouchEvent, _value: ExtendsMovableBox) => {
   addLog('resize-start', `开始调整: ${selectedUid.value}`, 'resize');
 };
 
-const onResize = (value: ExtendsMovableBox) => {
+const onResize = (_value: ExtendsMovableBox) => {
   // 实时调整事件
 };
 
-const onResizeStop = (event: MouseEvent | TouchEvent, oldValue: ExtendsMovableBox, newValue: ExtendsMovableBox) => {
+const onResizeStop = (
+  _event: MouseEvent | TouchEvent,
+  _oldValue: ExtendsMovableBox,
+  _newValue: ExtendsMovableBox
+) => {
   addLog('resize-stop', `调整结束: ${selectedUid.value}`, 'success');
 };
 
-const onActive = (value: any) => {
-  const found = boxes.value.find(b => 
-    b.data.left === value.left && 
-    b.data.top === value.top && 
-    b.data.width === value.width && 
-    b.data.height === value.height
-  );
-  if (found) {
-    selectedUid.value = found.uid;
-  }
-  addLog('active', `激活: ${selectedUid.value}`, 'success');
+const onActive = (uid: string) => {
+  selectedUid.value = uid;
+  addLog('active', `激活: ${uid}`, 'success');
 };
 
-const onInactive = (value: any) => {
-  if (!selectedUid.value) {
-    addLog('inactive', `取消激活`, 'warn');
-  }
+const onInactive = (uid: string) => {
+  if (selectedUid.value === uid) selectedUid.value = '';
+  addLog('inactive', `取消激活: ${uid}`, 'warn');
 };
 
-const onDoubleClick = (event: MouseEvent | TouchEvent) => {
+const onDoubleClick = (_event: MouseEvent) => {
   addLog('dblclick', `双击: ${selectedUid.value}`, 'info');
 };
 
@@ -640,48 +772,23 @@ const onOutOfBounds = (direction: 'left' | 'top' | 'right' | 'bottom') => {
   addLog('out-of-bounds', `超出边界: ${direction}`, 'warn');
 };
 
-const onCollision = (data: any) => {
-  addLog('collision', `碰撞检测触发`, 'warn');
+const onSnap = (data: SnapEventPayload) => {
+  addLog('snap', data.snapped ? `吸附到 ${data.targetId ?? '目标'}` : '离开吸附', 'info');
 };
 
-// 键盘事件处理
-onMounted(() => {
-  const handleKeydown = (e: KeyboardEvent) => {
-    if (!config.keyboardEnabled || !selectedUid.value) return;
-    
-    const box = selectedBox.value;
-    if (!box) return;
-    
-    const step = 10;
-    const [cw, ch] = canvasSize.value.split('x').map(Number);
-    
-    const left = asNumber(box.data.left);
-    const top = asNumber(box.data.top);
-    const width = asNumber(box.data.width);
-    const height = asNumber(box.data.height);
+const onGuides = (data: GuidesEventPayload) => {
+  if (data.vertical.length || data.horizontal.length) {
+    addLog('guides', `垂直 ${data.vertical.length} / 水平 ${data.horizontal.length}`, 'info');
+  }
+};
 
-    switch (e.key) {
-      case 'ArrowUp':
-        box.data.top = Math.max(edgeDistance.value, top - step);
-        break;
-      case 'ArrowDown':
-        box.data.top = Math.min(top + step, ch - height - edgeDistance.value);
-        break;
-      case 'ArrowLeft':
-        box.data.left = Math.max(edgeDistance.value, left - step);
-        break;
-      case 'ArrowRight':
-        box.data.left = Math.min(left + step, cw - width - edgeDistance.value);
-        break;
-      case 'Escape':
-        selectedUid.value = '';
-        addLog('keyboard', 'Esc 取消激活', 'info');
-        break;
-    }
-  };
-  
-  window.addEventListener('keydown', handleKeydown);
-});
+const onCollision = (data: CollisionEventPayload) => {
+  addLog(
+    'collision',
+    data.colliding ? `碰撞 ${data.targetId ?? '目标'} (${data.direction ?? '-'})` : '离开碰撞',
+    data.colliding ? 'warn' : 'info'
+  );
+};
 </script>
 
 <style scoped lang="scss">

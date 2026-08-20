@@ -1,17 +1,31 @@
 /**
  * VueMovableBox - 可拖拽可调整大小的 Vue 3 组件
  * @description A draggable and resizable container component for Vue 3
- * @version 1.1.6
+ * @version 1.1.7
  */
 
-import type { App, Component } from 'vue';
+import type { App } from 'vue';
 import MovableBox from './components/MovableBox/MovableBox.vue';
-import type { MovableBoxProps, ExtendsMovableBox, MovableBoxExpose, HandlesSet } from './types/MovableBox';
 
 // 导出组件 (两种命名方式兼容不同使用习惯)
 export { MovableBox };
 // VueMovableBox 作为类型导出，避免 dts 生成问题
-export type { MovableBoxProps, ExtendsMovableBox, MovableBoxExpose, HandlesSet };
+export type {
+  BoundsMargin,
+  CollisionDirection,
+  CollisionEventPayload,
+  DragDirection,
+  ExtendsMovableBox,
+  GuidesEventPayload,
+  HandlePosition,
+  HandlesSet,
+  MovableBoxExpose,
+  MovableBoxProps,
+  MovableBoxRect,
+  SnapEventPayload,
+  SnapPoint,
+  SnapTarget
+} from './types/MovableBox';
 
 // 组件名称
 export const name = 'VueMovableBox';
@@ -24,7 +38,7 @@ const install = (app: App) => {
 // 默认导出
 export default {
   name,
-  version: '1.1.6',
+  version: '1.1.7',
   install
 };
 

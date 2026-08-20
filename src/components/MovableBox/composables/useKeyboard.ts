@@ -1,99 +1,42 @@
-// 键盘控制 composable
-import { ref, computed } from 'vue';
-import { snapToGrid } from '../utils/snap';
+import type { DragDirection } from '../types';
 
 interface UseKeyboardOptions {
   enabled: boolean;
   step: number;
-  dragDirections: string[];
-  snapToGrid?: boolean;
-  gridSize?: number;
+  disabled: boolean;
+  readOnly: boolean;
+  active: boolean;
+  dragDirections: DragDirection[];
 }
 
 export function useKeyboard(
-  options: UseKeyboardOptions,
-  getPosition: () => { left: number; top: number },
-  setPosition: (left: number, top: number) => void,
-  getBounds: () => { minLeft: number; maxLeft: number; minTop: number; maxTop: number },
-  emit: (event: string, ...args: any[]) => void
+  getOptions: () => UseKeyboardOptions,
+  move: (direction: DragDirection, distance: number) => void,
+  deactivate: () => void
 ) {
-  const active = ref(false);
-
-  const isDirectionAllowed = (direction: string): boolean => {
-    return options.dragDirections.includes(direction);
-  };
-
   const handleKeyDown = (event: KeyboardEvent) => {
-    if (!options.enabled || !active.value) return;
+    const options = getOptions();
+    if (!options.enabled || options.disabled || !options.active) return;
 
-    const step = options.step || 1;
-    let moved = false;
-    let newLeft = getPosition().left;
-    let newTop = getPosition().top;
-
-    switch (event.key) {
-      case 'ArrowUp':
-        if (isDirectionAllowed('top')) {
-          newTop -= step;
-          moved = true;
-        }
-        break;
-      case 'ArrowDown':
-        if (isDirectionAllowed('bottom')) {
-          newTop += step;
-          moved = true;
-        }
-        break;
-      case 'ArrowLeft':
-        if (isDirectionAllowed('left')) {
-          newLeft -= step;
-          moved = true;
-        }
-        break;
-      case 'ArrowRight':
-        if (isDirectionAllowed('right')) {
-          newLeft += step;
-          moved = true;
-        }
-        break;
-      case 'Escape':
-        active.value = false;
-        return;
-      default:
-        return;
-    }
-
-    if (moved) {
+    if (event.key === 'Escape') {
       event.preventDefault();
-
-      // 网格吸附
-      if (options.snapToGrid) {
-        newLeft = snapToGrid(newLeft, options.gridSize || 20);
-        newTop = snapToGrid(newTop, options.gridSize || 20);
-      }
-
-      // 边界检查
-      const bounds = getBounds();
-      newLeft = Math.max(bounds.minLeft, Math.min(bounds.maxLeft, newLeft));
-      newTop = Math.max(bounds.minTop, Math.min(bounds.maxTop, newTop));
-
-      setPosition(newLeft, newTop);
-      emit('move', { left: newLeft, top: newTop });
+      deactivate();
+      return;
     }
+    if (options.readOnly) return;
+
+    const keyMap: Partial<Record<string, DragDirection>> = {
+      ArrowUp: 'top',
+      ArrowDown: 'bottom',
+      ArrowLeft: 'left',
+      ArrowRight: 'right'
+    };
+    const direction = keyMap[event.key];
+    if (!direction || !options.dragDirections.includes(direction)) return;
+
+    event.preventDefault();
+    move(direction, Number.isFinite(options.step) && options.step > 0 ? options.step : 1);
   };
 
-  const activate = () => {
-    active.value = true;
-  };
-
-  const deactivate = () => {
-    active.value = false;
-  };
-
-  return {
-    active,
-    handleKeyDown,
-    activate,
-    deactivate
-  };
+  return { handleKeyDown };
 }

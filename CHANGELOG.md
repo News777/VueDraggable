@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.7] - 2026-08-20
+
+### Changed
+- 更新发布版本为 `1.1.7`
+- 将主组件样式改为原生 CSS，避免发布构建依赖 Sass 编译
+
+### Fixed
+- 将网格、键盘、元素吸附和碰撞能力接入统一交互流程，修复此前仅声明参数但未生效的问题
+- 修复直接修改 `modelValue`、方向限制仅对键盘生效、边界间距计算不一致和触摸最后一帧丢失问题
+- 修复碰撞阻止整帧回退导致组件在目标边缘前残留 1–2px 间隙的问题
+- 修复元素贴合后因指针轻微斜向抖动而难以沿碰撞边缘滑动的问题
+- 修复快速拖拽或大步长键盘移动可穿过碰撞目标的问题
+- 修复斜向快速拖拽穿透目标及扫掠碰撞方向错误的问题
+- 修复吸附坐标变化漏发事件及单轴碰撞错误清空另一轴辅助线的问题
+- 修复交互过程中切换禁用/只读状态后仍继续移动，以及零高度比例锁定产生非有限尺寸的问题
+- 修复发布包缺少 Vue 组件声明文件的问题
+
+### Added
+- 增加元素对齐辅助线、状态化吸附事件、拖拽/缩放碰撞阻止以及初始重叠逃逸行为
+- 扩充到 58 项组件、工具和公共类型测试，覆盖触摸、键盘、百分比单位、边界、吸附、碰撞、公开方法和兼容别名
+- 新增项目路线图，明确 `1.2.0` 至 `2.0.0` 的演进方向和验收原则
+
+---
+
 ## [1.1.6] - 2026-08-19
 
 ### Changed
@@ -74,8 +98,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 ## [1.1.5-beta.1] - 2026-03-10
-
-### Known Issues
-- 缺少网格吸附功能
-- 缺少键盘支持
-

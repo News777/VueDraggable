@@ -17,15 +17,20 @@ export default defineConfig({
     dts({
       insertTypesEntry: true,
       cleanVueFileName: true,
-      include: ['src/index.ts', 'src/types/'],
-      exclude: ['src/**/*.vue'],
+      include: ['src/index.ts', 'src/types/', 'src/components/MovableBox/MovableBox.vue'],
+      exclude: ['src/**/*.spec.ts'],
       outDir: 'lib',
-    }),
+      afterDiagnostic(diagnostics) {
+        if (diagnostics.length > 0) {
+          throw new Error(`Declaration generation failed with ${diagnostics.length} diagnostic(s).`);
+        }
+      }
+    })
   ],
   resolve: {
     alias: {
-      '@': resolvePath('src'),
-    },
+      '@': resolvePath('src')
+    }
   },
   build: {
     outDir: resolvePath('lib'),
@@ -33,7 +38,7 @@ export default defineConfig({
     lib: {
       entry: resolvePath('src/index.ts'),
       name: 'VueMovableBox',
-      fileName: (format) => `vue-movable-box.${format}.js`,
+      fileName: format => `vue-movable-box.${format}.js`
     },
     rollupOptions: {
       external: ['vue', 'decimal.js'],
@@ -41,16 +46,16 @@ export default defineConfig({
         exports: 'named',
         globals: {
           vue: 'Vue',
-          'decimal.js': 'Decimal',
+          'decimal.js': 'Decimal'
         },
-        assetFileNames: (assetInfo) => {
+        assetFileNames: assetInfo => {
           const name = assetInfo.name || '';
           if (/\.(css|less|scss)$/.test(name)) {
             return 'css/VueMovableBox.[ext]';
           }
           return '[name].[hash].[ext]';
-        },
-      },
-    },
-  },
+        }
+      }
+    }
+  }
 });

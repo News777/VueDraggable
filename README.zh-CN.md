@@ -21,6 +21,8 @@
 - 🎨 **自定义主题** - 灵活的主题配置
 - 📏 **单位支持** - 支持 px 和 % 单位
 - 🌍 **边界限制** - 限制在父元素内移动
+- 🧲 **元素吸附** - 边缘、中心对齐与内置辅助线
+- 💥 **碰撞控制** - 检测重叠或阻止拖拽与缩放碰撞
 - ♿ **完整事件** - 丰富的事件回调
 - 🔧 **TypeScript** - 完整的类型支持
 - 🚀 **高性能** - 使用 RAF 优化，硬件加速
@@ -40,7 +42,7 @@ npm install vue-movable-box
 <script setup>
 import { ref } from 'vue'
 import { MovableBox } from 'vue-movable-box'
-import 'vue-movable-box/css'
+import 'vue-movable-box/style.css'
 
 const boxConfig = ref({
   left: 100,
@@ -90,8 +92,8 @@ pnpm dev
 | `limitAreaClass` | `string` | - | 自定义限制区域的 CSS 选择器 |
 | `maxWidth` | `number \| string` | - | 最大宽度 |
 | `maxHeight` | `number \| string` | - | 最大高度 |
-| `minWidth` | `number \| string` | - | 最小宽度 |
-| `minHeight` | `number \| string` | - | 最小高度 |
+| `minWidth` | `number \| string` | `0` | 最小宽度 |
+| `minHeight` | `number \| string` | `0` | 最小高度 |
 | `ratioLock` | `boolean` | `false` | 调整大小时是否锁定宽高比 |
 | `active` | `boolean` | `false` | 是否处于激活状态 |
 | `disabled` | `boolean` | `false` | 是否完全禁用 |
@@ -100,13 +102,18 @@ pnpm dev
 | `handles` | `HandlePosition[]` | 全部8个 | 允许显示的调整手柄 |
 | **网格与吸附** | | | |
 | `snapToGrid` | `boolean` | `false` | 是否吸附到网格 |
-| `gridSize` | `number` | `20` | 网格大小（像素） |
+| `gridSize` | `number` | `20` | 网格大小（当前坐标单位） |
+| `snapToElements` | `boolean` | `false` | 吸附到 `snapTargets` 的边缘或中心 |
+| `snapThreshold` | `number` | `10` | 元素吸附阈值 |
+| `snapTargets` | `SnapTarget[]` | `[]` | 其他元素的矩形数据；调用方应排除自身 |
+| `collisionEnabled` | `boolean` | `false` | 对 `snapTargets` 启用碰撞检测 |
+| `allowOverlap` | `boolean` | `false` | 检测到碰撞时是否仍允许重叠 |
 | **方向控制** | | | |
 | `dragDirections` | `string[]` | `['top','bottom','left','right']` | 允许拖拽的方向 |
 | `resizeDirections` | `string[]` | 全部8个 | 允许调整的方向 |
 | **边界与边距** | | | |
-| `edgeDistance` | `number` | `0` | 边界距离限制 |
-| `boundsMargin` | `Object` | `{top:0,right:0,bottom:0,left:0}` | 边界边距 |
+| `edgeDistance` | `number` | `0` | 四边统一边距 |
+| `boundsMargin` | `Object` | `{top:0,right:0,bottom:0,left:0}` | 每侧附加边距，与 `edgeDistance` 相加 |
 | **交互** | | | |
 | `enableTransition` | `boolean` | `false` | 启用过渡动画 |
 | `keyboardEnabled` | `boolean` | `false` | 启用键盘操作 |
@@ -125,11 +132,11 @@ type HandlePosition = 'tl' | 'tm' | 'tr' | 'ml' | 'mr' | 'bl' | 'bm' | 'br'
 
 ```ts
 interface MovableBoxRect {
-  left: number
-  top: number
-  width: number
-  height: number
-  zIndex: number
+  left: number | string
+  top: number | string
+  width: number | string
+  height: number | string
+  zIndex?: number
 }
 ```
 
@@ -138,18 +145,50 @@ interface MovableBoxRect {
 | 事件名 | 参数 | 说明 |
 |--------|------|------|
 | `update:modelValue` | `(value: MovableBoxRect)` | v-model 更新时触发 |
-| `drag-start` | `(event: MouseEvent, value: MovableBoxRect)` | 开始拖拽时触发 |
+| `drag-start` | `(event: MouseEvent \| TouchEvent, value: MovableBoxRect)` | 开始拖拽时触发 |
 | `drag` | `(value: MovableBoxRect)` | 拖拽过程中触发（节流） |
-| `drag-stop` | `(event: MouseEvent, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | 停止拖拽时触发 |
-| `resize-start` | `(event: MouseEvent, value: MovableBoxRect)` | 开始调整大小时触发 |
+| `drag-stop` | `(event: MouseEvent \| TouchEvent, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | 停止拖拽时触发 |
+| `resize-start` | `(event: MouseEvent \| TouchEvent, value: MovableBoxRect)` | 开始调整大小时触发 |
 | `resize` | `(value: MovableBoxRect)` | 调整大小过程中触发（节流） |
-| `resize-stop` | `(event: MouseEvent, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | 停止调整大小时触发 |
+| `resize-stop` | `(event: MouseEvent \| TouchEvent, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | 停止调整大小时触发 |
 | `active` | `(value: MovableBoxRect)` | 组件被激活时触发 |
 | `inactive` | `(value: MovableBoxRect)` | 组件失去激活时触发 |
 | `disabled` | `(value: boolean)` | 禁用状态变化时触发 |
 | `dblclick` | `(event: MouseEvent)` | 双击组件时触发 |
 | `out-of-bounds` | `(direction: 'left' \| 'top' \| 'right' \| 'bottom')` | 超出边界时触发 |
 | `move` | `(value: MovableBoxRect)` | `drag` 的兼容旧别名，已废弃 |
+| `snap` | `(value: SnapEventPayload)` | 吸附状态、吸附点或目标发生变化时触发 |
+| `guides` | `(value: GuidesEventPayload)` | 吸附目标或辅助线坐标发生变化时触发 |
+| `collision` | `(value: CollisionEventPayload)` | 进入、改变或离开碰撞状态时触发 |
+
+交互处理顺序为：方向限制 → 网格吸附 → 元素吸附 → 边界限制 → 碰撞校验。高级事件只在状态变化时触发，不会在每个相同的拖拽帧重复触发。目标矩形、网格、阈值和边距均使用 `unitType` 对应的坐标单位；`unitType="%"` 时数值代表百分点。
+
+```ts
+interface SnapEventPayload {
+  snapped: boolean
+  point?: SnapPoint // 已废弃的单吸附点兼容字段
+  points?: SnapPoint[]
+  targetId?: string
+  targetIds?: {
+    horizontal?: string
+    vertical?: string
+  }
+}
+
+interface GuidesEventPayload {
+  vertical: number[]
+  horizontal: number[]
+}
+
+interface CollisionEventPayload {
+  colliding: boolean
+  direction?: 'left' | 'right' | 'top' | 'bottom'
+  targetId?: string
+}
+```
+
+双轴同时吸附时，`targetId` 保留为兼容旧用法的主要目标；`targetIds.horizontal` 和
+`targetIds.vertical` 分别表示两个坐标轴选中的目标。
 
 ### Methods
 
@@ -247,7 +286,7 @@ boxRef.value.deactivate()
 <div class="custom-area">
   <MovableBox 
     v-model="config"
-    limit-area-class="custom-area"
+    limit-area-class=".custom-area"
   />
 </div>
 ```
@@ -261,6 +300,22 @@ boxRef.value.deactivate()
   :grid-size="20"
 />
 ```
+
+### 元素吸附与碰撞
+
+```vue
+<MovableBox
+  v-model="current"
+  :snap-to-elements="true"
+  :collision-enabled="true"
+  :allow-overlap="false"
+  :snap-targets="otherBoxes"
+  @snap="handleSnap"
+  @collision="handleCollision"
+/>
+```
+
+`otherBoxes` 中的每项包含 `left`、`top`、`width`、`height` 和可选 `id`，组件会自动显示对齐辅助线。边缘接触不算碰撞；关闭重叠时，拖拽或缩放保持在最后一个合法矩形，初始已重叠的元素只允许向总重叠面积减小的方向移动。多目标碰撞以重叠面积最大的目标决定 `direction` 和 `targetId`；开启 `allowOverlap` 会提交候选矩形，但仍会上报碰撞。
 
 ### 键盘控制
 
@@ -282,13 +337,13 @@ boxRef.value.deactivate()
 <!-- 只允许左右拖拽，禁止上下移动 -->
 <MovableBox 
   v-model="config"
-  drag-directions="['left', 'right']"
+  :drag-directions="['left', 'right']"
 />
 
 <!-- 只显示左右调整手柄 -->
 <MovableBox 
   v-model="config"
-  resize-directions="['ml', 'mr']"
+  :resize-directions="['ml', 'mr']"
 />
 ```
 
@@ -436,6 +491,7 @@ vue-movable-box/
 - [npm 包](https://www.npmjs.com/package/vue-movable-box)
 - [GitHub 仓库](https://github.com/News777/VueDraggable)
 - [问题反馈](https://github.com/News777/VueDraggable/issues)
+- [项目规划](ROADMAP.md)
 
 ## 许可证
 

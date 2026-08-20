@@ -21,6 +21,8 @@ A high-performance, feature-rich Vue 3 container component for drag-and-drop and
 - 🎨 **Customizable Theme** - Flexible theme configuration
 - 📏 **Unit Support** - Supports both px and % units
 - 🌍 **Boundary Constraints** - Constrain movement within parent element
+- 🧲 **Element Snapping** - Edge/center alignment with built-in guides
+- 💥 **Collision Control** - Detect overlap or block drag and resize collisions
 - ♿ **Rich Events** - Comprehensive event callbacks
 - 🔧 **TypeScript** - Full type support
 - 🚀 **High Performance** - RAF optimization with hardware acceleration
@@ -40,7 +42,7 @@ npm install vue-movable-box
 <script setup>
 import { ref } from 'vue'
 import { MovableBox } from 'vue-movable-box'
-import 'vue-movable-box/css'
+import 'vue-movable-box/style.css'
 
 const boxConfig = ref({
   left: 100,
@@ -90,8 +92,8 @@ Visit http://localhost:5173 for the interactive demo.
 | `limitAreaClass` | `string` | - | Custom constraint area CSS selector |
 | `maxWidth` | `number \| string` | - | Maximum width |
 | `maxHeight` | `number \| string` | - | Maximum height |
-| `minWidth` | `number \| string` | - | Minimum width |
-| `minHeight` | `number \| string` | - | Minimum height |
+| `minWidth` | `number \| string` | `0` | Minimum width |
+| `minHeight` | `number \| string` | `0` | Minimum height |
 | `ratioLock` | `boolean` | `false` | Lock aspect ratio when resizing |
 | `active` | `boolean` | `false` | Is active |
 | `disabled` | `boolean` | `false` | Completely disabled |
@@ -100,13 +102,18 @@ Visit http://localhost:5173 for the interactive demo.
 | `handles` | `HandlePosition[]` | all 8 | Visible resize handles |
 | **Grid & Snap** | | | |
 | `snapToGrid` | `boolean` | `false` | Snap to grid |
-| `gridSize` | `number` | `20` | Grid size in pixels |
+| `gridSize` | `number` | `20` | Grid size in the active coordinate unit |
+| `snapToElements` | `boolean` | `false` | Snap to edges or centers in `snapTargets` |
+| `snapThreshold` | `number` | `10` | Element snap threshold |
+| `snapTargets` | `SnapTarget[]` | `[]` | Rectangles of other elements; exclude the current box |
+| `collisionEnabled` | `boolean` | `false` | Detect collisions against `snapTargets` |
+| `allowOverlap` | `boolean` | `false` | Allow a colliding candidate to be committed |
 | **Direction Control** | | | |
 | `dragDirections` | `string[]` | `['top','bottom','left','right']` | Allowed drag directions |
 | `resizeDirections` | `string[]` | all 8 | Allowed resize directions |
 | **Bounds & Margin** | | | |
-| `edgeDistance` | `number` | `0` | Edge distance constraint |
-| `boundsMargin` | `Object` | `{top:0,right:0,bottom:0,left:0}` | Boundary margin |
+| `edgeDistance` | `number` | `0` | Shared inset on all sides |
+| `boundsMargin` | `Object` | `{top:0,right:0,bottom:0,left:0}` | Per-side inset added to `edgeDistance` |
 | **Interaction** | | | |
 | `enableTransition` | `boolean` | `false` | Enable transition animation |
 | `keyboardEnabled` | `boolean` | `false` | Enable keyboard control |
@@ -125,11 +132,11 @@ type HandlePosition = 'tl' | 'tm' | 'tr' | 'ml' | 'mr' | 'bl' | 'bm' | 'br'
 
 ```ts
 interface MovableBoxRect {
-  left: number
-  top: number
-  width: number
-  height: number
-  zIndex: number
+  left: number | string
+  top: number | string
+  width: number | string
+  height: number | string
+  zIndex?: number
 }
 ```
 
@@ -138,18 +145,50 @@ interface MovableBoxRect {
 | Event | Parameters | Description |
 |-------|------------|-------------|
 | `update:modelValue` | `(value: MovableBoxRect)` | Emitted on v-model update |
-| `drag-start` | `(event: MouseEvent, value: MovableBoxRect)` | Drag start |
+| `drag-start` | `(event: MouseEvent \| TouchEvent, value: MovableBoxRect)` | Drag start |
 | `drag` | `(value: MovableBoxRect)` | During drag (throttled) |
-| `drag-stop` | `(event: MouseEvent, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | Drag stop |
-| `resize-start` | `(event: MouseEvent, value: MovableBoxRect)` | Resize start |
+| `drag-stop` | `(event: MouseEvent \| TouchEvent, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | Drag stop |
+| `resize-start` | `(event: MouseEvent \| TouchEvent, value: MovableBoxRect)` | Resize start |
 | `resize` | `(value: MovableBoxRect)` | During resize (throttled) |
-| `resize-stop` | `(event: MouseEvent, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | Resize stop |
+| `resize-stop` | `(event: MouseEvent \| TouchEvent, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | Resize stop |
 | `active` | `(value: MovableBoxRect)` | Component activated |
 | `inactive` | `(value: MovableBoxRect)` | Component deactivated |
 | `disabled` | `(value: boolean)` | Disabled state changed |
 | `dblclick` | `(event: MouseEvent)` | Double click |
 | `out-of-bounds` | `(direction: 'left' \| 'top' \| 'right' \| 'bottom')` | Out of bounds |
 | `move` | `(value: MovableBoxRect)` | Deprecated alias of `drag` for backward compatibility |
+| `snap` | `(value: SnapEventPayload)` | Snap state, point, or target changed |
+| `guides` | `(value: GuidesEventPayload)` | Snap target or guide coordinates changed |
+| `collision` | `(value: CollisionEventPayload)` | Collision state, direction, or target changed |
+
+Interactive changes are resolved in this order: direction filtering → grid snap → element snap → bounds → collision. Advanced events are emitted only when their state changes. Targets, grid size, thresholds, and insets use the coordinate unit selected by `unitType`; with `unitType="%"`, values are percentage points.
+
+```ts
+interface SnapEventPayload {
+  snapped: boolean
+  point?: SnapPoint // deprecated single-point alias
+  points?: SnapPoint[]
+  targetId?: string
+  targetIds?: {
+    horizontal?: string
+    vertical?: string
+  }
+}
+
+interface GuidesEventPayload {
+  vertical: number[]
+  horizontal: number[]
+}
+
+interface CollisionEventPayload {
+  colliding: boolean
+  direction?: 'left' | 'right' | 'top' | 'bottom'
+  targetId?: string
+}
+```
+
+For multi-axis snapping, `targetId` remains the primary backward-compatible target, while
+`targetIds.horizontal` and `targetIds.vertical` identify the target selected on each axis.
 
 ### Methods
 
@@ -172,7 +211,10 @@ boxRef.value.setPosition(100, 100)
 // Set size
 boxRef.value.setSize(300, 200)
 
-// Reset to initial position
+// Reset to the initial model
+boxRef.value.reset()
+
+// Activate
 boxRef.value.activate()
 
 // Deactivate
@@ -244,7 +286,7 @@ boxRef.value.deactivate()
 <div class="custom-area">
   <MovableBox 
     v-model="config"
-    limit-area-class="custom-area"
+    limit-area-class=".custom-area"
   />
 </div>
 ```
@@ -258,6 +300,26 @@ boxRef.value.deactivate()
   :grid-size="20"
 />
 ```
+
+### Element Snap and Collision
+
+```vue
+<MovableBox
+  v-model="current"
+  :snap-to-elements="true"
+  :collision-enabled="true"
+  :allow-overlap="false"
+  :snap-targets="otherBoxes"
+  @snap="handleSnap"
+  @collision="handleCollision"
+/>
+```
+
+Each item in `otherBoxes` contains `left`, `top`, `width`, `height`, and an optional `id`.
+Alignment guides are rendered automatically. Touching edges are not a collision. With overlap
+disabled, dragging or resizing keeps the last valid rectangle; an initially overlapping box may
+only move when total overlap decreases. With multiple collisions, the largest overlap determines
+`direction` and `targetId`. Enabling `allowOverlap` commits the candidate but still reports it.
 
 ### Keyboard Control
 
@@ -279,13 +341,13 @@ boxRef.value.deactivate()
 <!-- Horizontal drag only, no vertical -->
 <MovableBox 
   v-model="config"
-  drag-directions="['left', 'right']"
+  :drag-directions="['left', 'right']"
 />
 
 <!-- Show only horizontal resize handles -->
 <MovableBox 
   v-model="config"
-  resize-directions="['ml', 'mr']"
+  :resize-directions="['ml', 'mr']"
 />
 ```
 
@@ -433,6 +495,7 @@ vue-movable-box/
 - [npm Package](https://www.npmjs.com/package/vue-movable-box)
 - [GitHub Repository](https://github.com/News777/VueDraggable)
 - [Issue Tracker](https://github.com/News777/VueDraggable/issues)
+- [Project Roadmap](ROADMAP.md)
 
 ## License
 

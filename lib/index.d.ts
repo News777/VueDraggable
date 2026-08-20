@@ -1,9 +1,8 @@
 import { App } from 'vue';
 import { default as MovableBox } from './components/MovableBox/MovableBox';
-import { MovableBoxProps, ExtendsMovableBox, MovableBoxExpose, HandlesSet } from './types/MovableBox';
 
 export { MovableBox };
-export type { MovableBoxProps, ExtendsMovableBox, MovableBoxExpose, HandlesSet };
+export type { BoundsMargin, CollisionDirection, CollisionEventPayload, DragDirection, ExtendsMovableBox, GuidesEventPayload, HandlePosition, HandlesSet, MovableBoxExpose, MovableBoxProps, MovableBoxRect, SnapEventPayload, SnapPoint, SnapTarget } from './types/MovableBox';
 export declare const name = "VueMovableBox";
 declare const _default: {
     name: string;

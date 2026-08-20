@@ -1,162 +1,192 @@
-// 对齐吸附功能
-import type { MovableBoxRect } from '../types';
+import type {
+  GuidesEventPayload,
+  MovableBoxRect,
+  SnapPoint,
+  SnapTarget
+} from '../types';
 
 export interface SnapResult {
   left: number;
   top: number;
   snapped: boolean;
-  snapPoint?: 'left' | 'right' | 'top' | 'bottom' | 'center-x' | 'center-y';
+  snapPoint?: SnapPoint;
+  points: SnapPoint[];
+  targetId?: string;
+  targetIds: { horizontal?: string; vertical?: string };
+  guides: GuidesEventPayload;
 }
 
-/**
- * 对齐到网格
- */
-export function snapToGrid(value: number, gridSize: number, threshold = 10): number {
-  const remainder = value % gridSize;
-  if (remainder < threshold) {
-    return Math.round(value / gridSize) * gridSize;
-  }
-  if (remainder > gridSize - threshold) {
-    return (Math.round(value / gridSize) + 1) * gridSize;
-  }
-  return value;
+export interface SnapAxes {
+  horizontal: boolean;
+  vertical: boolean;
 }
 
-/**
- * 对齐到元素边缘
- * @param current 当前元素位置
- * @param targets 目标元素数组
- * @param threshold 吸附阈值
- */
+interface Candidate {
+  distance: number;
+  guide: number;
+  point: SnapPoint;
+  targetId?: string;
+  value: number;
+}
+
+const toFiniteNumber = (value: number | string): number | null => {
+  if (typeof value === 'string' && value.trim() === '') return null;
+  const converted = Number(value);
+  return Number.isFinite(converted) ? converted : null;
+};
+
+const toFiniteRect = (rect: MovableBoxRect) => {
+  const left = toFiniteNumber(rect.left);
+  const top = toFiniteNumber(rect.top);
+  const width = toFiniteNumber(rect.width);
+  const height = toFiniteNumber(rect.height);
+  if (left === null || top === null || width === null || height === null) return null;
+  if (width < 0 || height < 0) return null;
+  return { left, top, width, height };
+};
+
+export function snapToGrid(value: number, gridSize: number): number {
+  const size = Number.isFinite(gridSize) && gridSize > 0 ? gridSize : 20;
+  return Math.round(value / size) * size;
+}
+
+const chooseNearest = (current: Candidate | null, candidate: Candidate, threshold: number) => {
+  if (candidate.distance > threshold) return current;
+  if (!current || candidate.distance < current.distance) return candidate;
+  return current;
+};
+
 export function snapToElements(
   current: { left: number; top: number; width: number; height: number },
-  targets: MovableBoxRect[],
-  threshold = 10
+  targets: SnapTarget[],
+  threshold = 10,
+  axes: SnapAxes = { horizontal: true, vertical: true }
 ): SnapResult {
-  let newLeft = current.left;
-  let newTop = current.top;
-  let snapped = false;
-  let snapPoint: SnapResult['snapPoint'];
-
-  const currentRight = current.left + current.width;
-  const currentBottom = current.top + current.height;
-  const currentCenterX = current.left + current.width / 2;
-  const currentCenterY = current.top + current.height / 2;
+  const limit = Math.max(0, Number.isFinite(threshold) ? threshold : 10);
+  const right = current.left + current.width;
+  const bottom = current.top + current.height;
+  const centerX = current.left + current.width / 2;
+  const centerY = current.top + current.height / 2;
+  let nearestX: Candidate | null = null;
+  let nearestY: Candidate | null = null;
 
   for (const target of targets) {
-    const tLeft = Number(target.left);
-    const tTop = Number(target.top);
-    const tWidth = Number(target.width);
-    const tHeight = Number(target.height);
-    const tRight = tLeft + tWidth;
-    const tBottom = tTop + tHeight;
-    const tCenterX = tLeft + tWidth / 2;
-    const tCenterY = tTop + tHeight / 2;
+    const rect = toFiniteRect(target);
+    if (!rect) continue;
 
-    // 左边缘对齐
-    if (Math.abs(current.left - tLeft) < threshold) {
-      newLeft = tLeft;
-      snapped = true;
-      snapPoint = 'left';
-    }
-    // 右边缘对齐
-    else if (Math.abs(currentRight - tRight) < threshold) {
-      newLeft = tRight - current.width;
-      snapped = true;
-      snapPoint = 'right';
-    }
-    // 左边缘对齐到目标右边缘
-    else if (Math.abs(current.left - tRight) < threshold) {
-      newLeft = tRight;
-      snapped = true;
-      snapPoint = 'left';
-    }
-    // 右边缘对齐到目标左边缘
-    else if (Math.abs(currentRight - tLeft) < threshold) {
-      newLeft = tLeft - current.width;
-      snapped = true;
-      snapPoint = 'right';
-    }
-    // 垂直居中对齐
-    else if (Math.abs(currentCenterX - tCenterX) < threshold) {
-      newLeft = tCenterX - current.width / 2;
-      snapped = true;
-      snapPoint = 'center-x';
-    }
+    const targetRight = rect.left + rect.width;
+    const targetBottom = rect.top + rect.height;
+    const targetCenterX = rect.left + rect.width / 2;
+    const targetCenterY = rect.top + rect.height / 2;
+    const targetId = target.id;
 
-    // 上边缘对齐
-    if (Math.abs(current.top - tTop) < threshold) {
-      newTop = tTop;
-      snapped = true;
-      snapPoint = 'top';
+    const xCandidates: Candidate[] = [
+      {
+        distance: Math.abs(current.left - rect.left),
+        value: rect.left,
+        guide: rect.left,
+        point: 'left',
+        targetId
+      },
+      {
+        distance: Math.abs(right - targetRight),
+        value: targetRight - current.width,
+        guide: targetRight,
+        point: 'right',
+        targetId
+      },
+      {
+        distance: Math.abs(current.left - targetRight),
+        value: targetRight,
+        guide: targetRight,
+        point: 'left',
+        targetId
+      },
+      {
+        distance: Math.abs(right - rect.left),
+        value: rect.left - current.width,
+        guide: rect.left,
+        point: 'right',
+        targetId
+      },
+      {
+        distance: Math.abs(centerX - targetCenterX),
+        value: targetCenterX - current.width / 2,
+        guide: targetCenterX,
+        point: 'center-x',
+        targetId
+      }
+    ];
+
+    const yCandidates: Candidate[] = [
+      {
+        distance: Math.abs(current.top - rect.top),
+        value: rect.top,
+        guide: rect.top,
+        point: 'top',
+        targetId
+      },
+      {
+        distance: Math.abs(bottom - targetBottom),
+        value: targetBottom - current.height,
+        guide: targetBottom,
+        point: 'bottom',
+        targetId
+      },
+      {
+        distance: Math.abs(current.top - targetBottom),
+        value: targetBottom,
+        guide: targetBottom,
+        point: 'top',
+        targetId
+      },
+      {
+        distance: Math.abs(bottom - rect.top),
+        value: rect.top - current.height,
+        guide: rect.top,
+        point: 'bottom',
+        targetId
+      },
+      {
+        distance: Math.abs(centerY - targetCenterY),
+        value: targetCenterY - current.height / 2,
+        guide: targetCenterY,
+        point: 'center-y',
+        targetId
+      }
+    ];
+
+    if (axes.horizontal) {
+      for (const candidate of xCandidates) nearestX = chooseNearest(nearestX, candidate, limit);
     }
-    // 下边缘对齐
-    else if (Math.abs(currentBottom - tBottom) < threshold) {
-      newTop = tBottom - current.height;
-      snapped = true;
-      snapPoint = 'bottom';
-    }
-    // 上边缘对齐到目标下边缘
-    else if (Math.abs(current.top - tBottom) < threshold) {
-      newTop = tBottom;
-      snapped = true;
-      snapPoint = 'top';
-    }
-    // 下边缘对齐到目标上边缘
-    else if (Math.abs(currentBottom - tTop) < threshold) {
-      newTop = tTop - current.height;
-      snapped = true;
-      snapPoint = 'bottom';
-    }
-    // 水平居中对齐
-    else if (Math.abs(currentCenterY - tCenterY) < threshold) {
-      newTop = tCenterY - current.height / 2;
-      snapped = true;
-      snapPoint = 'center-y';
+    if (axes.vertical) {
+      for (const candidate of yCandidates) nearestY = chooseNearest(nearestY, candidate, limit);
     }
   }
 
-  return { left: newLeft, top: newTop, snapped, snapPoint };
+  const points = [nearestX?.point, nearestY?.point].filter(
+    (point): point is SnapPoint => Boolean(point)
+  );
+  return {
+    left: nearestX?.value ?? current.left,
+    top: nearestY?.value ?? current.top,
+    snapped: points.length > 0,
+    snapPoint: points[0],
+    points,
+    targetId: nearestX?.targetId ?? nearestY?.targetId,
+    targetIds: { horizontal: nearestX?.targetId, vertical: nearestY?.targetId },
+    guides: {
+      vertical: nearestX ? [nearestX.guide] : [],
+      horizontal: nearestY ? [nearestY.guide] : []
+    }
+  };
 }
 
-/**
- * 生成对齐辅助线数据
- */
 export function getSnapGuides(
   current: { left: number; top: number; width: number; height: number },
-  targets: MovableBoxRect[],
-  threshold = 10
-): { vertical: number[]; horizontal: number[] } {
-  const vertical: number[] = [];
-  const horizontal: number[] = [];
-
-  const currentCenterX = current.left + current.width / 2;
-  const currentCenterY = current.top + current.height / 2;
-
-  for (const target of targets) {
-    const tLeft = Number(target.left);
-    const tTop = Number(target.top);
-    const tWidth = Number(target.width);
-    const tHeight = Number(target.height);
-    const tRight = tLeft + tWidth;
-    const tBottom = tTop + tHeight;
-    const tCenterX = tLeft + tWidth / 2;
-    const tCenterY = tTop + tHeight / 2;
-
-    // 垂直辅助线
-    if (Math.abs(current.left - tLeft) < threshold) vertical.push(tLeft);
-    if (Math.abs(current.left + current.width - tRight) < threshold) vertical.push(tRight);
-    if (Math.abs(current.left - tRight) < threshold) vertical.push(tRight);
-    if (Math.abs(current.left + current.width - tLeft) < threshold) vertical.push(tLeft);
-    if (Math.abs(currentCenterX - tCenterX) < threshold) vertical.push(tCenterX);
-
-    // 水平辅助线
-    if (Math.abs(current.top - tTop) < threshold) horizontal.push(tTop);
-    if (Math.abs(current.top + current.height - tBottom) < threshold) horizontal.push(tBottom);
-    if (Math.abs(current.top - tBottom) < threshold) horizontal.push(tBottom);
-    if (Math.abs(current.top + current.height - tTop) < threshold) horizontal.push(tTop);
-    if (Math.abs(currentCenterY - tCenterY) < threshold) horizontal.push(tCenterY);
-  }
-
-  return { vertical: [...new Set(vertical)], horizontal: [...new Set(horizontal)] };
+  targets: SnapTarget[],
+  threshold = 10,
+  axes?: SnapAxes
+): GuidesEventPayload {
+  return snapToElements(current, targets, threshold, axes).guides;
 }

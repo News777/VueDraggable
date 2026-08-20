@@ -1,116 +1,706 @@
 import { nextTick } from 'vue';
-import { mount } from '@vue/test-utils';
+import { mount, type VueWrapper } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import MovableBox from './MovableBox.vue';
 
 const flushFrame = () => new Promise(resolve => setTimeout(resolve, 0));
 
-describe('MovableBox', () => {
-  const makeProps = (overrides: Record<string, any> = {}) => ({
-    modelValue: {
-      left: 10,
-      top: 20,
-      width: 120,
-      height: 80,
-      zIndex: 1
+const makeModel = (overrides: Record<string, unknown> = {}) => ({
+  left: 10,
+  top: 20,
+  width: 120,
+  height: 80,
+  zIndex: 1,
+  uid: 'box-1',
+  ...overrides
+});
+
+const mountBox = (overrides: Record<string, unknown> = {}) => {
+  const wrapper = mount(MovableBox, {
+    props: {
+      modelValue: makeModel(),
+      draggable: true,
+      resizable: true,
+      limitAreaForParent: false,
+      ...overrides
     },
-    draggable: true,
-    resizable: true,
-    limitAreaForParent: false,
-    ...overrides
+    attachTo: document.body
   });
+  const parent = wrapper.element.parentElement as HTMLElement;
+  Object.defineProperty(parent, 'clientWidth', { configurable: true, value: 500 });
+  Object.defineProperty(parent, 'clientHeight', { configurable: true, value: 400 });
+  return wrapper;
+};
 
-  it('renders the initial rect and exposes the active state style', async () => {
-    const wrapper = mount(MovableBox, {
-      props: makeProps(),
-      slots: {
-        default: '<div class="content">content</div>'
-      }
-    });
-
-    await nextTick();
-
-    const element = wrapper.get('.auto-draggable');
-    expect(element.element).toBeTruthy();
-    expect(element.attributes('style')).toContain('left: 10px');
-    expect(element.attributes('style')).toContain('top: 20px');
-    expect(element.attributes('style')).toContain('width: 120px');
-    expect(element.attributes('style')).toContain('height: 80px');
-  });
-
-  it('updates the model when dragging the box', async () => {
-    const wrapper = mount(MovableBox, {
-      props: makeProps(),
-      attachTo: document.body
-    });
-
-    const root = wrapper.get('.auto-draggable');
-
-    await root.trigger('mousedown', { clientX: 100, clientY: 200 });
+const mouseDrag = async (
+  wrapper: VueWrapper,
+  from: readonly [number, number],
+  to: readonly [number, number],
+  selector = '.auto-draggable',
+  finish = true
+) => {
+  await wrapper.get(selector).trigger('mousedown', { clientX: from[0], clientY: from[1] });
+  document.documentElement.dispatchEvent(
+    new MouseEvent('mousemove', { clientX: to[0], clientY: to[1], bubbles: true })
+  );
+  await flushFrame();
+  if (finish) {
     document.documentElement.dispatchEvent(
-      new MouseEvent('mousemove', { clientX: 170, clientY: 260, bubbles: true })
+      new MouseEvent('mouseup', { clientX: to[0], clientY: to[1], bubbles: true })
+    );
+  }
+  await nextTick();
+};
+
+const touchEvent = (type: string, x: number, y: number) => {
+  const event = new Event(type, { bubbles: true, cancelable: true }) as TouchEvent;
+  const touches = type === 'touchend' || type === 'touchcancel' ? [] : [{ clientX: x, clientY: y }];
+  Object.defineProperty(event, 'touches', { value: touches });
+  Object.defineProperty(event, 'changedTouches', { value: [{ clientX: x, clientY: y }] });
+  return event;
+};
+
+describe('MovableBox', () => {
+  it('renders the model and synchronizes external replacements', async () => {
+    const wrapper = mountBox();
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('left: 10px');
+
+    await wrapper.setProps({ modelValue: makeModel({ left: 75, top: 45 }) });
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('left: 75px');
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('top: 45px');
+  });
+
+  it('emits an immutable model while retaining custom fields', async () => {
+    const model = makeModel();
+    const wrapper = mountBox({ modelValue: model });
+    await mouseDrag(wrapper, [100, 200], [170, 260]);
+
+    const update = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as Record<string, unknown>;
+    expect(model).toMatchObject({ left: 10, top: 20 });
+    expect(update).not.toBe(model);
+    expect(update).toMatchObject({ left: 80, top: 80, uid: 'box-1' });
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('left: 80px');
+  });
+
+  it('applies pointer direction restrictions before grid snapping', async () => {
+    const wrapper = mountBox({
+      dragDirections: ['left', 'right'],
+      snapToGrid: true,
+      gridSize: 20
+    });
+    await mouseDrag(wrapper, [0, 0], [15, 27]);
+    const update = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as Record<string, number>;
+    expect(update).toMatchObject({ left: 20, top: 20 });
+  });
+
+  it.each([
+    ['left', [-15, 20], { left: -5, top: 20 }],
+    ['right', [15, 20], { left: 25, top: 20 }],
+    ['top', [15, -20], { left: 10, top: 0 }],
+    ['bottom', [15, 20], { left: 10, top: 40 }]
+  ] as const)('allows only %s pointer movement', async (direction, delta, expected) => {
+    const wrapper = mountBox({ dragDirections: [direction] });
+    await mouseDrag(wrapper, [0, 0], delta);
+    const update = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as Record<string, number>;
+    expect(update).toMatchObject(expected);
+  });
+
+  it('applies direction restrictions to touch and keyboard movement', async () => {
+    const touchWrapper = mountBox({ dragDirections: ['left'] });
+    touchWrapper.get('.auto-draggable').element.dispatchEvent(touchEvent('touchstart', 10, 20));
+    document.documentElement.dispatchEvent(touchEvent('touchmove', 40, 50));
+    document.documentElement.dispatchEvent(touchEvent('touchend', 40, 50));
+    await nextTick();
+    expect(touchWrapper.emitted('update:modelValue')?.at(-1)?.[0]).toMatchObject({
+      left: 10,
+      top: 20
+    });
+
+    const keyboardWrapper = mountBox({
+      active: true,
+      keyboardEnabled: true,
+      keyboardStep: 10,
+      dragDirections: ['left']
+    });
+    await keyboardWrapper.get('.auto-draggable').trigger('keydown', { key: 'ArrowRight' });
+    expect(keyboardWrapper.emitted('update:modelValue')).toBeFalsy();
+    await keyboardWrapper.get('.auto-draggable').trigger('keydown', { key: 'ArrowLeft' });
+    expect(keyboardWrapper.emitted('update:modelValue')?.at(-1)?.[0]).toMatchObject({ left: 0 });
+  });
+
+  it('does not snap a direction-locked axis', async () => {
+    const wrapper = mountBox({
+      modelValue: makeModel({ top: 23 }),
+      dragDirections: ['left', 'right'],
+      snapToGrid: true,
+      gridSize: 20,
+      snapToElements: true,
+      snapThreshold: 10,
+      snapTargets: [{ id: 'target', left: 300, top: 25, width: 50, height: 50 }]
+    });
+    await mouseDrag(wrapper, [0, 0], [15, 30]);
+    const update = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as Record<string, number>;
+    expect(update.top).toBe(23);
+  });
+
+  it('does not let grid or element snapping reverse a one-way drag', async () => {
+    const gridWrapper = mountBox({
+      modelValue: makeModel({ left: 5 }),
+      dragDirections: ['right'],
+      snapToGrid: true,
+      gridSize: 20
+    });
+    await mouseDrag(gridWrapper, [0, 0], [1, 0]);
+    expect(gridWrapper.emitted('update:modelValue')?.at(-1)?.[0]).toMatchObject({ left: 5 });
+
+    const elementWrapper = mountBox({
+      modelValue: makeModel({ left: 10, width: 20 }),
+      dragDirections: ['right'],
+      snapToElements: true,
+      snapThreshold: 10,
+      snapTargets: [{ id: 'left-target', left: 5, top: 200, width: 20, height: 20 }]
+    });
+    await mouseDrag(elementWrapper, [0, 0], [1, 0]);
+    expect(elementWrapper.emitted('update:modelValue')?.at(-1)?.[0]).toMatchObject({ left: 10 });
+  });
+
+  it('converts pointer deltas to percentage points for drag and resize', async () => {
+    const dragging = mountBox({
+      modelValue: makeModel({ left: 10, top: 20, width: 20, height: 20 }),
+      unitType: '%'
+    });
+    await mouseDrag(dragging, [0, 0], [50, 40]);
+    const dragUpdate = dragging.emitted('update:modelValue')?.at(-1)?.[0] as Record<
+      string,
+      number
+    >;
+    expect(dragUpdate).toMatchObject({ left: 20, top: 30 });
+
+    const resizing = mountBox({
+      modelValue: makeModel({ left: 10, top: 20, width: 20, height: 20 }),
+      unitType: '%',
+      handles: ['br']
+    });
+    await mouseDrag(resizing, [0, 0], [50, 40], '.handle-br');
+    const resizeUpdate = resizing.emitted('update:modelValue')?.at(-1)?.[0] as Record<
+      string,
+      number
+    >;
+    expect(resizeUpdate).toMatchObject({ width: 30, height: 30 });
+  });
+
+  it('adds edgeDistance and boundsMargin on every side', async () => {
+    const wrapper = mountBox({
+      modelValue: makeModel({ left: 30, top: 30, width: 100, height: 80 }),
+      limitAreaForParent: true,
+      edgeDistance: 10,
+      boundsMargin: { top: 5, right: 5, bottom: 5, left: 5 }
+    });
+    await mouseDrag(wrapper, [100, 100], [-100, -100]);
+    const update = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as Record<string, number>;
+    expect(update).toMatchObject({ left: 15, top: 15 });
+    expect(wrapper.emitted('out-of-bounds')).toBeTruthy();
+  });
+
+  it('reports out-of-bounds without clamping when parent limiting is disabled', async () => {
+    const wrapper = mountBox({
+      modelValue: makeModel({ left: 30, top: 30, width: 100, height: 80 }),
+      limitAreaForParent: false
+    });
+    await mouseDrag(wrapper, [100, 100], [-100, -100]);
+    const update = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as Record<string, number>;
+    expect(update).toMatchObject({ left: -170, top: -170 });
+    expect(wrapper.emitted('out-of-bounds')?.map(args => args[0])).toEqual(['left', 'top']);
+  });
+
+  it('reports the resized edge outside an unclamped parent area', async () => {
+    const wrapper = mountBox({
+      modelValue: makeModel({ left: 100, top: 50, width: 100, height: 80 }),
+      limitAreaForParent: false,
+      handles: ['mr']
+    });
+    await mouseDrag(wrapper, [0, 0], [400, 0], '.handle-mr');
+    const update = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as Record<string, number>;
+    expect(update.width).toBe(500);
+    expect(wrapper.emitted('out-of-bounds')?.map(args => args[0])).toEqual(['right']);
+  });
+
+  it('snaps to the nearest element, renders guides, and clears them on stop', async () => {
+    const wrapper = mountBox({
+      modelValue: makeModel({ left: 10, top: 20, width: 100, height: 80 }),
+      snapToElements: true,
+      snapThreshold: 5,
+      snapTargets: [{ id: 'target', left: 115, top: 20, width: 100, height: 80 }]
+    });
+    await mouseDrag(wrapper, [0, 0], [2, 0], '.auto-draggable', false);
+
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('left: 15px');
+    expect(wrapper.find('.movable-box-guide--vertical').exists()).toBe(true);
+    expect(wrapper.emitted('snap')?.at(-1)?.[0]).toMatchObject({
+      snapped: true,
+      targetId: 'target'
+    });
+
+    document.documentElement.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    await nextTick();
+    expect(wrapper.find('.movable-box-guide').exists()).toBe(false);
+    expect(wrapper.emitted('snap')?.at(-1)?.[0]).toEqual({ snapped: false });
+  });
+
+  it('emits snap again when the snapped coordinate changes', async () => {
+    const wrapper = mountBox({
+      modelValue: makeModel({ left: 8, top: 100, width: 20, height: 20 }),
+      snapToElements: true,
+      snapThreshold: 5,
+      snapTargets: [{ id: 'target', left: 10, top: 300, width: 20, height: 20 }]
+    });
+    await wrapper.get('.auto-draggable').trigger('mousedown', { clientX: 0, clientY: 0 });
+    document.documentElement.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 1, clientY: 0, bubbles: true })
+    );
+    await flushFrame();
+    expect(wrapper.emitted('snap')).toHaveLength(1);
+
+    await wrapper.setProps({
+      snapTargets: [{ id: 'target', left: 12, top: 300, width: 20, height: 20 }]
+    });
+    document.documentElement.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 1, clientY: 0, bubbles: true })
+    );
+    await flushFrame();
+
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('left: 12px');
+    expect(wrapper.emitted('snap')).toHaveLength(2);
+    document.documentElement.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  });
+
+  it('emits snap and guides again when a secondary snap target changes', async () => {
+    const horizontalTarget = { id: 'horizontal', left: 115, top: 500, width: 100, height: 80 };
+    const verticalTarget = { id: 'vertical-1', left: 500, top: 105, width: 100, height: 80 };
+    const wrapper = mountBox({
+      modelValue: makeModel({ width: 100, height: 80 }),
+      snapToElements: true,
+      snapThreshold: 5,
+      snapTargets: [horizontalTarget, verticalTarget]
+    });
+    await mouseDrag(wrapper, [0, 0], [2, 2], '.auto-draggable', false);
+    const snapCount = wrapper.emitted('snap')?.length ?? 0;
+    const guideCount = wrapper.emitted('guides')?.length ?? 0;
+
+    await wrapper.setProps({
+      snapTargets: [horizontalTarget, { ...verticalTarget, id: 'vertical-2' }]
+    });
+    document.documentElement.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 2, clientY: 2, bubbles: true })
+    );
+    await flushFrame();
+
+    expect(wrapper.emitted('snap')).toHaveLength(snapCount + 1);
+    expect(wrapper.emitted('snap')?.at(-1)?.[0]).toMatchObject({
+      targetIds: { horizontal: 'horizontal', vertical: 'vertical-2' }
+    });
+    expect(wrapper.emitted('guides')).toHaveLength(guideCount + 1);
+    document.documentElement.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  });
+
+  it('clamps drag to the target edge without leaving a small gap', async () => {
+    const wrapper = mountBox({
+      modelValue: makeModel({ left: 8, top: 0, width: 50, height: 50 }),
+      collisionEnabled: true,
+      snapTargets: [{ id: 'target', left: 60, top: 0, width: 50, height: 50 }]
+    });
+    await wrapper.get('.auto-draggable').trigger('mousedown', { clientX: 0, clientY: 0 });
+    document.documentElement.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 4, clientY: 0, bubbles: true })
     );
     await flushFrame();
     document.documentElement.dispatchEvent(
-      new MouseEvent('mouseup', { clientX: 170, clientY: 260, bubbles: true })
+      new MouseEvent('mousemove', { clientX: 6, clientY: 0, bubbles: true })
     );
+    await flushFrame();
 
-    await nextTick();
-    const dragPayload = wrapper.emitted('drag')?.at(-1)?.[0] as
-      | { left: number; top: number; width: number; height: number }
-      | undefined;
-
-    expect(dragPayload).toMatchObject({
-      left: 80,
-      top: 80,
-      width: 120,
-      height: 80
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('left: 10px');
+    expect(wrapper.emitted('collision')).toHaveLength(1);
+    expect(wrapper.emitted('collision')?.[0]?.[0]).toMatchObject({
+      colliding: true,
+      targetId: 'target'
     });
-    expect(wrapper.props('modelValue')).toMatchObject({
-      left: 80,
-      top: 80,
-      width: 120,
-      height: 80
+    document.documentElement.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    expect(wrapper.emitted('collision')).toHaveLength(2);
+    expect(wrapper.emitted('collision')?.[1]?.[0]).toEqual({ colliding: false });
+  });
+
+  it('prevents a fast drag from tunneling through a collision target', async () => {
+    const wrapper = mountBox({
+      modelValue: makeModel({ left: 0, top: 0, width: 50, height: 50 }),
+      collisionEnabled: true,
+      snapTargets: [{ id: 'target', left: 60, top: 0, width: 50, height: 50 }]
+    });
+    await mouseDrag(wrapper, [0, 0], [120, 0]);
+
+    const update = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as Record<string, number>;
+    expect(update.left).toBe(10);
+    expect(wrapper.emitted('collision')?.[0]?.[0]).toMatchObject({
+      colliding: true,
+      direction: 'left',
+      targetId: 'target'
     });
   });
 
-  it('resizes from the bottom-right handle without shrinking below the minimum size', async () => {
-    const wrapper = mount(MovableBox, {
-      props: makeProps({
-        minWidth: 40,
-        minHeight: 40,
-        handles: ['br']
-      }),
-      attachTo: document.body
+  it('prevents a diagonal drag from tunneling through a collision target', async () => {
+    const wrapper = mountBox({
+      modelValue: makeModel({ left: 0, top: 0, width: 20, height: 20 }),
+      collisionEnabled: true,
+      snapTargets: [{ id: 'target', left: 50, top: 50, width: 20, height: 20 }]
     });
+    await mouseDrag(wrapper, [0, 0], [100, 100]);
 
-    const handle = wrapper.get('.handle-br');
+    const update = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as Record<string, number>;
+    expect(update).toMatchObject({ left: 30, top: 30 });
+    expect(wrapper.emitted('collision')?.[0]?.[0]).toMatchObject({
+      colliding: true,
+      targetId: 'target'
+    });
+  });
 
-    await handle.trigger('mousedown', { clientX: 100, clientY: 200 });
+  it('slides vertically along a side collision despite horizontal pointer jitter', async () => {
+    const wrapper = mountBox({
+      modelValue: makeModel({ left: 10, top: 0, width: 50, height: 50 }),
+      collisionEnabled: true,
+      snapTargets: [{ id: 'target', left: 60, top: 0, width: 50, height: 100 }]
+    });
+    await mouseDrag(wrapper, [0, 0], [2, 30]);
+
+    const update = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as Record<string, number>;
+    expect(update).toMatchObject({ left: 10, top: 30 });
+    expect(wrapper.emitted('collision')?.[0]?.[0]).toMatchObject({
+      colliding: true,
+      targetId: 'target'
+    });
+  });
+
+  it('slides horizontally along a vertical collision despite vertical pointer jitter', async () => {
+    const wrapper = mountBox({
+      modelValue: makeModel({ left: 0, top: 10, width: 50, height: 50 }),
+      collisionEnabled: true,
+      snapTargets: [{ id: 'target', left: 0, top: 60, width: 100, height: 50 }]
+    });
+    await mouseDrag(wrapper, [0, 0], [30, 2]);
+
+    const update = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as Record<string, number>;
+    expect(update).toMatchObject({ left: 30, top: 10 });
+  });
+
+  it('preserves a vertical snap when collision only adjusts the horizontal axis', async () => {
+    const wrapper = mountBox({
+      modelValue: makeModel({ left: 10, top: 18, width: 50, height: 20 }),
+      isKeepDecimals: true,
+      snapToElements: true,
+      snapThreshold: 1,
+      collisionEnabled: true,
+      snapTargets: [
+        { id: 'blocker', left: 60, top: 0, width: 50, height: 100 },
+        { id: 'guide', left: 300, top: 20, width: 50, height: 20 }
+      ]
+    });
+    await mouseDrag(wrapper, [0, 0], [2, 1], '.auto-draggable', false);
+
+    const update = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as Record<string, number>;
+    expect(update).toMatchObject({ left: 10, top: 20 });
+    expect(wrapper.find('.movable-box-guide--horizontal').exists()).toBe(true);
+    expect(wrapper.emitted('snap')?.at(-1)?.[0]).toMatchObject({
+      snapped: true,
+      point: 'top',
+      targetId: 'guide'
+    });
+    document.documentElement.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  });
+
+  it('allows overlap when configured while still reporting collision', async () => {
+    const wrapper = mountBox({
+      modelValue: makeModel({ left: 0, top: 0, width: 50, height: 50 }),
+      collisionEnabled: true,
+      allowOverlap: true,
+      snapTargets: [{ id: 'target', left: 60, top: 0, width: 50, height: 50 }]
+    });
+    await mouseDrag(wrapper, [0, 0], [20, 0]);
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('left: 20px');
+    expect(wrapper.emitted('collision')?.[0]?.[0]).toMatchObject({ colliding: true });
+  });
+
+  it('allows an initially overlapping box to move toward a valid position', async () => {
+    const wrapper = mountBox({
+      modelValue: makeModel({ left: 0, top: 0, width: 80, height: 50 }),
+      collisionEnabled: true,
+      snapTargets: [{ id: 'target', left: 60, top: 0, width: 50, height: 50 }]
+    });
+    await mouseDrag(wrapper, [0, 0], [-10, 0]);
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('left: -10px');
+  });
+
+  it('clamps resize to the target edge', async () => {
+    const wrapper = mountBox({
+      modelValue: makeModel({ left: 0, top: 0, width: 50, height: 50 }),
+      handles: ['br'],
+      collisionEnabled: true,
+      snapTargets: [{ id: 'target', left: 60, top: 0, width: 50, height: 50 }]
+    });
+    await mouseDrag(wrapper, [50, 50], [80, 50], '.handle-br');
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('width: 60px');
+    expect(wrapper.emitted('collision')?.[0]?.[0]).toMatchObject({ colliding: true });
+  });
+
+  it('keeps the opposite edge anchored when resize reaches the parent boundary', async () => {
+    const wrapper = mountBox({
+      modelValue: makeModel({ left: 100, top: 50, width: 100, height: 80 }),
+      limitAreaForParent: true,
+      handles: ['mr']
+    });
+    await mouseDrag(wrapper, [0, 0], [1000, 0], '.handle-mr');
+    const update = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as Record<string, number>;
+    expect(update).toMatchObject({ left: 100, width: 400 });
+  });
+
+  it.each([
+    ['tl', -10, -10],
+    ['tm', 0, -10],
+    ['tr', 10, -10],
+    ['mr', 10, 0],
+    ['br', 10, 10],
+    ['bm', 0, 10],
+    ['bl', -10, 10],
+    ['ml', -10, 0]
+  ] as const)('resizes through the %s handle', async (handle, deltaX, deltaY) => {
+    const wrapper = mountBox({ handles: [handle], resizeDirections: [handle] });
+    await mouseDrag(wrapper, [0, 0], [deltaX, deltaY], `.handle-${handle}`);
+    const update = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as Record<string, number>;
+    expect(update).toBeTruthy();
+    expect(
+      update.left !== 10 || update.top !== 20 || update.width !== 120 || update.height !== 80
+    ).toBe(true);
+  });
+
+  it('enforces resize handles, min/max size, and ratio lock', async () => {
+    const wrapper = mountBox({
+      modelValue: makeModel({ left: 0, top: 0, width: 100, height: 50 }),
+      handles: ['br'],
+      resizeDirections: ['br'],
+      minWidth: 80,
+      minHeight: 40,
+      maxWidth: 140,
+      maxHeight: 70,
+      ratioLock: true
+    });
+    expect(wrapper.findAll('.handle')).toHaveLength(1);
+    await mouseDrag(wrapper, [100, 50], [200, 100], '.handle-br');
+    const update = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as Record<string, number>;
+    expect(update.width).toBe(140);
+    expect(update.height).toBe(70);
+
+    await mouseDrag(wrapper, [0, 0], [-200, -200], '.handle-br');
+    const minimum = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as Record<string, number>;
+    expect(minimum.width).toBe(80);
+    expect(minimum.height).toBe(40);
+  });
+
+  it('hides and blocks handles excluded by resizeDirections', async () => {
+    const wrapper = mountBox({ handles: ['br'], resizeDirections: [] });
+    expect(wrapper.get('.handle-br').isVisible()).toBe(false);
+    await wrapper.get('.handle-br').trigger('mousedown', { clientX: 0, clientY: 0 });
+    expect(wrapper.emitted('resize-start')).toBeFalsy();
+  });
+
+  it('keeps ratio-locked resizing finite when the initial height is zero', async () => {
+    const wrapper = mountBox({
+      modelValue: makeModel({ left: 0, top: 0, width: 100, height: 0 }),
+      handles: ['br'],
+      resizeDirections: ['br'],
+      ratioLock: true
+    });
+    await mouseDrag(wrapper, [0, 0], [10, 10], '.handle-br');
+
+    const update = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as Record<string, number>;
+    expect(Number.isFinite(update.width)).toBe(true);
+    expect(Number.isFinite(update.height)).toBe(true);
+    expect(update).toMatchObject({ width: 110, height: 110 });
+  });
+
+  it('keeps the deprecated resizeable alias functional', async () => {
+    const wrapper = mountBox({ resizable: undefined, resizeable: false });
+    await wrapper.get('.auto-draggable').trigger('mousedown', { clientX: 0, clientY: 0 });
+    expect(wrapper.find('.handle').isVisible()).toBe(false);
+  });
+
+  it('supports keyboard movement, grid snapping, and Escape deactivation', async () => {
+    const wrapper = mountBox({
+      active: true,
+      keyboardEnabled: true,
+      keyboardStep: 7,
+      snapToGrid: true,
+      gridSize: 10
+    });
+    await wrapper.get('.auto-draggable').trigger('keydown', { key: 'ArrowRight' });
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('left: 20px');
+
+    await wrapper.get('.auto-draggable').trigger('keydown', { key: 'Escape' });
+    expect(wrapper.emitted('inactive')).toBeTruthy();
+  });
+
+  it('does not move a readonly box with the keyboard', async () => {
+    const wrapper = mountBox({ active: true, initRect: true, keyboardEnabled: true });
+
+    await wrapper.get('.auto-draggable').trigger('keydown', { key: 'ArrowRight' });
+
+    expect(wrapper.emitted('update:modelValue')).toBeFalsy();
+    expect(wrapper.emitted('move')).toBeFalsy();
+  });
+
+  it('prevents a large keyboard step from tunneling through a collision target', async () => {
+    const wrapper = mountBox({
+      modelValue: makeModel({ left: 0, top: 0, width: 50, height: 50 }),
+      active: true,
+      keyboardEnabled: true,
+      keyboardStep: 120,
+      collisionEnabled: true,
+      snapTargets: [{ id: 'target', left: 60, top: 0, width: 50, height: 50 }]
+    });
+    await wrapper.get('.auto-draggable').trigger('keydown', { key: 'ArrowRight' });
+
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('left: 10px');
+    expect(wrapper.emitted('collision')?.[0]?.[0]).toMatchObject({ colliding: true });
+  });
+
+  it('processes the final queued touch frame before touchend', async () => {
+    const wrapper = mountBox();
+    wrapper.get('.auto-draggable').element.dispatchEvent(touchEvent('touchstart', 10, 20));
+    document.documentElement.dispatchEvent(touchEvent('touchmove', 40, 50));
+    document.documentElement.dispatchEvent(touchEvent('touchend', 40, 50));
+    await nextTick();
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('left: 40px');
+    expect(wrapper.emitted('drag-stop')).toBeTruthy();
+  });
+
+  it('cleans up touch listeners after touchcancel', async () => {
+    const wrapper = mountBox();
+    wrapper.get('.auto-draggable').element.dispatchEvent(touchEvent('touchstart', 10, 20));
+    document.documentElement.dispatchEvent(touchEvent('touchmove', 40, 50));
+    document.documentElement.dispatchEvent(touchEvent('touchcancel', 40, 50));
+    await nextTick();
+    const updatesAfterCancel = wrapper.emitted('update:modelValue')?.length ?? 0;
+
+    document.documentElement.dispatchEvent(touchEvent('touchmove', 80, 90));
+    await flushFrame();
+    expect(wrapper.emitted('update:modelValue')?.length ?? 0).toBe(updatesAfterCancel);
+    expect(wrapper.get('.auto-draggable').classes()).not.toContain('is-dragging');
+  });
+
+  it('emits immutable updates from exposed methods and resets to the initial model', async () => {
+    const wrapper = mountBox({
+      modelValue: makeModel({ left: 25, top: 35 }),
+      snapToGrid: true,
+      gridSize: 20,
+      snapToElements: true,
+      snapTargets: [{ id: 'target', left: 100, top: 100, width: 100, height: 100 }]
+    });
+    const vm = wrapper.vm as unknown as {
+      setPosition: (left: number, top: number) => void;
+      setSize: (width: number, height: number) => void;
+      reset: () => void;
+      activate: () => void;
+      deactivate: () => void;
+    };
+
+    vm.setPosition(103, 117);
+    expect(wrapper.emitted('update:modelValue')?.[0]?.[0]).toMatchObject({ left: 103, top: 117 });
+    vm.setSize(200, 210);
+    expect(wrapper.emitted('update:modelValue')).toHaveLength(2);
+    vm.reset();
+    await nextTick();
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('left: 25px');
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('width: 120px');
+
+    vm.activate();
+    vm.deactivate();
+    expect(wrapper.emitted('active')).toBeTruthy();
+    expect(wrapper.emitted('inactive')).toBeTruthy();
+  });
+
+  it('does not start interactions while disabled or readonly', async () => {
+    const disabled = mountBox({ disabled: true });
+    await disabled.get('.auto-draggable').trigger('mousedown', { clientX: 0, clientY: 0 });
+    expect(disabled.emitted('drag-start')).toBeFalsy();
+
+    const readonly = mountBox({ initRect: true });
+    await readonly.get('.auto-draggable').trigger('mousedown', { clientX: 0, clientY: 0 });
+    expect(readonly.emitted('drag-start')).toBeFalsy();
+  });
+
+  it.each(['disabled', 'initRect'] as const)(
+    'cancels an active interaction when %s becomes true',
+    async prop => {
+      const wrapper = mountBox();
+      await wrapper.get('.auto-draggable').trigger('mousedown', { clientX: 0, clientY: 0 });
+      await wrapper.setProps({ [prop]: true });
+      document.documentElement.dispatchEvent(
+        new MouseEvent('mousemove', { clientX: 100, clientY: 100, bubbles: true })
+      );
+      await flushFrame();
+
+      expect(wrapper.emitted('update:modelValue')).toBeFalsy();
+      expect(wrapper.get('.auto-draggable').classes()).not.toContain('is-dragging');
+    }
+  );
+
+  it('cancels an active interaction when the active prop becomes false', async () => {
+    const wrapper = mountBox({ active: true });
+    await wrapper.get('.auto-draggable').trigger('mousedown', { clientX: 0, clientY: 0 });
+    await wrapper.setProps({ active: false });
     document.documentElement.dispatchEvent(
-      new MouseEvent('mousemove', { clientX: 180, clientY: 260, bubbles: true })
+      new MouseEvent('mousemove', { clientX: 100, clientY: 100, bubbles: true })
     );
     await flushFrame();
+
+    expect(wrapper.emitted('update:modelValue')).toBeFalsy();
+    expect(wrapper.get('.auto-draggable').classes()).not.toContain('is-dragging');
+    expect(wrapper.emitted('inactive')).toBeTruthy();
+  });
+
+  it('cancels an active interaction when deactivated by method or Escape', async () => {
+    const methodWrapper = mountBox();
+    await methodWrapper.get('.auto-draggable').trigger('mousedown', { clientX: 0, clientY: 0 });
+    (methodWrapper.vm as unknown as { deactivate: () => void }).deactivate();
     document.documentElement.dispatchEvent(
-      new MouseEvent('mouseup', { clientX: 180, clientY: 260, bubbles: true })
+      new MouseEvent('mousemove', { clientX: 100, clientY: 100, bubbles: true })
     );
+    await flushFrame();
+    expect(methodWrapper.emitted('update:modelValue')).toBeFalsy();
+    expect(methodWrapper.get('.auto-draggable').classes()).not.toContain('is-dragging');
 
-    await nextTick();
-    const resizePayload = wrapper.emitted('resize')?.at(-1)?.[0] as
-      | { width: number; height: number }
-      | undefined;
+    const escapeWrapper = mountBox({ active: true, keyboardEnabled: true });
+    await escapeWrapper.get('.auto-draggable').trigger('mousedown', { clientX: 0, clientY: 0 });
+    await escapeWrapper.get('.auto-draggable').trigger('keydown', { key: 'Escape' });
+    document.documentElement.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 100, clientY: 100, bubbles: true })
+    );
+    await flushFrame();
+    expect(escapeWrapper.emitted('update:modelValue')).toBeFalsy();
+    expect(escapeWrapper.get('.auto-draggable').classes()).not.toContain('is-dragging');
+    expect(escapeWrapper.emitted('inactive')).toBeTruthy();
+  });
 
-    expect(resizePayload).toMatchObject({
-      width: expect.any(Number),
-      height: expect.any(Number)
-    });
-    expect(resizePayload!.width).toBeGreaterThanOrEqual(40);
-    expect(resizePayload!.height).toBeGreaterThanOrEqual(40);
-    expect(wrapper.props('modelValue')).toMatchObject({
-      width: expect.any(Number),
-      height: expect.any(Number)
-    });
-    expect(wrapper.props('modelValue').width).toBeGreaterThanOrEqual(40);
-    expect(wrapper.props('modelValue').height).toBeGreaterThanOrEqual(40);
+  it('cancels a pending animation frame and document listeners on unmount', async () => {
+    const wrapper = mountBox();
+    await wrapper.get('.auto-draggable').trigger('mousedown', { clientX: 0, clientY: 0 });
+    document.documentElement.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 100, clientY: 100, bubbles: true })
+    );
+    wrapper.unmount();
+    document.documentElement.dispatchEvent(
+      new MouseEvent('mousemove', { clientX: 150, clientY: 150, bubbles: true })
+    );
+    document.documentElement.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    await flushFrame();
+
+    expect(wrapper.emitted('update:modelValue')).toBeFalsy();
   });
 });
