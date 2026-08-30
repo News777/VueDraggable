@@ -35,7 +35,13 @@
         class="handle"
         :class="`handle-${handle}`"
         :style="handleStyle"
+        role="separator"
+        :aria-orientation="handleOrientation(handle)"
+        :aria-label="handleLabel(handle)"
+        :tabindex="keyboardEnabled ? 0 : undefined"
         @pointerdown.stop.prevent="handlePointerDown($event, handle)"
+        @focus="focusedHandle = handle"
+        @blur="focusedHandle = null"
       ></div>
     </template>
 
@@ -166,6 +172,7 @@ const cloneRect = (value: ExtendsMovableBox) => deepClone(value);
 const movableRef = ref<HTMLElement>();
 const internalRect = ref<ExtendsMovableBox>(cloneRect(props.modelValue));
 const initialRect = cloneRect(props.modelValue);
+const focusedHandle = ref<HandlePosition | null>(null);
 
 const state = reactive({
   active: props.active,
@@ -233,6 +240,7 @@ const isResizable = computed(() => props.resizable ?? props.resizeable ?? true);
 const isPercent = computed(() => props.unitType === '%');
 
 const movableStyle = computed<CSSProperties>(() => ({
+  '--movable-box-theme': props.theme,
   borderColor: props.disabled
     ? props.inActiveColor
     : state.active
@@ -910,6 +918,47 @@ const moveWithKeyboard = (direction: DragDirection, distance: number) => {
   }
 };
 
+const sameRect = (a: ExtendsMovableBox, b: ExtendsMovableBox) =>
+  asNumber(a.left) === asNumber(b.left) &&
+  asNumber(a.top) === asNumber(b.top) &&
+  asNumber(a.width) === asNumber(b.width) &&
+  asNumber(a.height) === asNumber(b.height);
+
+const resizeWithKeyboard = (
+  handle: HandlePosition,
+  direction: DragDirection,
+  distance: number
+) => {
+  if (props.disabled || props.initRect || !isResizable.value || !isHandleAllowed(handle)) return;
+  refreshArea();
+  const previous = cloneRect(internalRect.value);
+  const deltaX = direction === 'left' ? -distance : direction === 'right' ? distance : 0;
+  const deltaY = direction === 'top' ? -distance : direction === 'bottom' ? distance : 0;
+  const candidate = resizeFromHandle(previous, handle, deltaX, deltaY);
+  reportOutOfBounds(candidate);
+  const collisionResolved = resolveCollision(candidate, previous);
+  if (!collisionResolved || sameRect(collisionResolved, previous)) return;
+  const value = commitRect(collisionResolved);
+  emit('resize', cloneRect(value));
+};
+
+const HANDLE_LABELS: Record<HandlePosition, string> = {
+  tl: 'top left',
+  tm: 'top middle',
+  tr: 'top right',
+  ml: 'middle left',
+  mr: 'middle right',
+  bl: 'bottom left',
+  bm: 'bottom middle',
+  br: 'bottom right'
+};
+const handleLabel = (handle: HandlePosition) => `Resize ${HANDLE_LABELS[handle]}`;
+const handleOrientation = (handle: HandlePosition) => {
+  if (handle === 'tm' || handle === 'bm') return 'horizontal';
+  if (handle === 'ml' || handle === 'mr') return 'vertical';
+  return undefined;
+};
+
 const keyboard = useKeyboard(
   () => ({
     enabled: props.keyboardEnabled,
@@ -917,9 +966,12 @@ const keyboard = useKeyboard(
     disabled: props.disabled,
     readOnly: props.initRect,
     active: state.active,
-    dragDirections: props.dragDirections
+    dragDirections: props.dragDirections,
+    resizeDirections: props.resizeDirections,
+    focusedHandle: focusedHandle.value
   }),
   moveWithKeyboard,
+  resizeWithKeyboard,
   deactivateComponent
 );
 const handleKeyDown = keyboard.handleKeyDown;
@@ -989,6 +1041,12 @@ onUnmounted(() => {
 
 .auto-draggable.is-active {
   box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
+}
+
+.auto-draggable:focus-visible,
+.handle:focus-visible {
+  outline: 2px solid var(--movable-box-theme, #409efd);
+  outline-offset: 1px;
 }
 
 .auto-draggable.is-dragging,

@@ -119,6 +119,7 @@ Visit http://localhost:5173 for the interactive demo.
 | **Interaction** | | | |
 | `enableTransition` | `boolean` | `false` | Enable transition animation |
 | `keyboardEnabled` | `boolean` | `false` | Enable keyboard control |
+| `keyboardStep` | `number` | `1` | Step for arrow-key movement and Shift + arrow-key resizing |
 | `keyboardStep` | `number` | `1` | Keyboard movement step |
 
 #### HandlePosition Type
@@ -191,6 +192,23 @@ interface CollisionEventPayload {
 
 For multi-axis snapping, `targetId` remains the primary backward-compatible target, while
 `targetIds.horizontal` and `targetIds.vertical` identify the target selected on each axis.
+
+### Keyboard & Accessibility
+
+With `keyboardEnabled` enabled, the box and its resize handles are focusable via Tab and show a
+focus outline using the theme color:
+
+- Arrow keys move the box by `keyboardStep` (restricted by `dragDirections`).
+- `Shift` + arrow keys resize, anchored at the bottom-right handle (or the first handle allowed by
+  `resizeDirections`). Arrows indicate the direction the moved edge travels, so `Shift+→` /
+  `Shift+↓` grow and `Shift+←` / `Shift+↑` shrink.
+- When a resize handle is focused, arrow keys resize along that handle's axes (corner handles
+  support both axes) and `Shift` inverts the direction. Handles carry `role="separator"`,
+  `aria-orientation`, and `aria-label` (e.g. "Resize bottom right") semantics.
+- `Escape` deactivates an active box.
+
+Without `keyboardEnabled`, handles stay unfocusable and keyboard events have no effect, preserving
+the previous behavior.
 
 ### Methods
 

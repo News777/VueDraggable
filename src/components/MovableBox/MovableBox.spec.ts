@@ -581,6 +581,64 @@ describe('MovableBox', () => {
     expect(wrapper.emitted('collision')?.[0]?.[0]).toMatchObject({ colliding: true });
   });
 
+  it('resizes with Shift and arrow keys while respecting size bounds', async () => {
+    const wrapper = mountBox({
+      active: true,
+      keyboardEnabled: true,
+      keyboardStep: 50,
+      handles: ['br'],
+      resizeDirections: ['br'],
+      maxWidth: 130
+    });
+    await wrapper.get('.auto-draggable').trigger('keydown', { key: 'ArrowRight', shiftKey: true });
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('width: 130px');
+    expect(wrapper.emitted('resize')).toBeTruthy();
+
+    await wrapper.get('.auto-draggable').trigger('keydown', { key: 'ArrowLeft', shiftKey: true });
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('width: 80px');
+
+    const withoutKeyboard = mountBox({ handles: ['br'] });
+    await withoutKeyboard
+      .get('.auto-draggable')
+      .trigger('keydown', { key: 'ArrowRight', shiftKey: true });
+    expect(withoutKeyboard.emitted('resize')).toBeFalsy();
+  });
+
+  it('resizes along a focused handle axis and inverts with Shift', async () => {
+    const wrapper = mountBox({
+      active: true,
+      keyboardEnabled: true,
+      keyboardStep: 10,
+      handles: ['mr'],
+      resizeDirections: ['mr']
+    });
+    const handle = wrapper.get('.handle-mr');
+    await handle.trigger('focus');
+
+    await handle.trigger('keydown', { key: 'ArrowRight' });
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('width: 130px');
+
+    await handle.trigger('keydown', { key: 'ArrowDown' });
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('height: 80px');
+
+    await handle.trigger('keydown', { key: 'ArrowLeft', shiftKey: true });
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('width: 140px');
+  });
+
+  it('exposes accessible semantics on resize handles', async () => {
+    const wrapper = mountBox({ active: true, keyboardEnabled: true, handles: ['tl', 'mr', 'bm'] });
+    const middleRight = wrapper.get('.handle-mr');
+    expect(middleRight.attributes('role')).toBe('separator');
+    expect(middleRight.attributes('aria-orientation')).toBe('vertical');
+    expect(middleRight.attributes('aria-label')).toBe('Resize middle right');
+    expect(middleRight.attributes('tabindex')).toBe('0');
+    expect(wrapper.get('.handle-bm').attributes('aria-orientation')).toBe('horizontal');
+    expect(wrapper.get('.handle-tl').attributes('aria-orientation')).toBeUndefined();
+
+    const withoutKeyboard = mountBox({ active: true, handles: ['mr'] });
+    expect(withoutKeyboard.get('.handle-mr').attributes('tabindex')).toBeUndefined();
+  });
+
   it('processes the final queued touch frame before pointerup', async () => {
     const wrapper = mountBox();
     wrapper.get('.auto-draggable').element.dispatchEvent(pointerEvent('pointerdown', 10, 20));

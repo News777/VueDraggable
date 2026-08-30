@@ -119,7 +119,7 @@ pnpm dev
 | **交互** | | | |
 | `enableTransition` | `boolean` | `false` | 启用过渡动画 |
 | `keyboardEnabled` | `boolean` | `false` | 启用键盘操作 |
-| `keyboardStep` | `number` | `1` | 键盘移动步长 |
+| `keyboardStep` | `number` | `1` | 方向键移动步长；配合 Shift 键作为缩放步长 |
 
 #### HandlePosition 类型
 
@@ -191,6 +191,17 @@ interface CollisionEventPayload {
 
 双轴同时吸附时，`targetId` 保留为兼容旧用法的主要目标；`targetIds.horizontal` 和
 `targetIds.vertical` 分别表示两个坐标轴选中的目标。
+
+### 键盘与无障碍
+
+开启 `keyboardEnabled` 后，组件支持完整的键盘操作（方框与缩放手柄均可通过 Tab 聚焦，并显示与主题色一致的焦点轮廓）：
+
+- 方向键：按 `keyboardStep` 移动方框（受 `dragDirections` 限制）。
+- `Shift` + 方向键：以右下角手柄（或 `resizeDirections` 中第一个允许的手柄）为锚点调整大小，方向键指示被拖动边缘的移动方向，因此 `Shift+→`/`Shift+↓` 放大、`Shift+←`/`Shift+↑` 缩小。
+- 聚焦某个缩放手柄后，方向键沿该手柄的轴向调整大小（角手柄支持两个轴向），按住 `Shift` 反向；手柄带有 `role="separator"`、`aria-orientation` 与 `aria-label`（如 "Resize bottom right"）语义。
+- `Escape`：方框处于激活状态时取消激活。
+
+不开启 `keyboardEnabled` 时行为保持不变：手柄不可聚焦，键盘事件不生效。
 
 ### Methods
 
