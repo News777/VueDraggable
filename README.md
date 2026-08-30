@@ -88,6 +88,8 @@ Visit http://localhost:5173 for the interactive demo.
 | `draggable` | `boolean` | `true` | Enable dragging |
 | `dragHandle` | `string` | - | CSS selector restricting where a drag can start; when set, only matching elements inside the box start drags |
 | `dragCancel` | `string` | - | CSS selector for elements (e.g. forms, buttons) that must not start a drag |
+| `canDrag` | `(value: MovableBoxRect) => boolean` | - | Called before a drag starts; return `false` to reject the interaction without mutating the model |
+| `canResize` | `(value: MovableBoxRect, handle: HandlePosition) => boolean` | - | Called before a resize starts; return `false` to reject the interaction without mutating the model |
 | `resizable` | `boolean` | `true` | Enable resizing (preferred name) |
 | `resizeable` | `boolean` | `true` | Deprecated alias of `resizable` for backward compatibility |
 | `limitAreaForParent` | `boolean` | `true` | Limit to parent element |

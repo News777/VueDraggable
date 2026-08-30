@@ -93,6 +93,14 @@ const props = defineProps({
   draggable: { type: Boolean, default: true },
   dragHandle: String,
   dragCancel: String,
+  canDrag: {
+    type: Function as PropType<(value: ExtendsMovableBox) => boolean>,
+    default: undefined
+  },
+  canResize: {
+    type: Function as PropType<(value: ExtendsMovableBox, handle: HandlePosition) => boolean>,
+    default: undefined
+  },
   resizable: { type: Boolean, default: undefined },
   resizeable: { type: Boolean, default: undefined },
   limitAreaForParent: { type: Boolean, default: true },
@@ -869,6 +877,13 @@ const startInteraction = (source: PointerEvent, handle: HandlePosition | null) =
   if (props.disabled || props.initRect) return;
   if (handle && (!isResizable.value || !isHandleAllowed(handle))) return;
   if (!handle && !props.draggable) return;
+
+  const currentRect = cloneRect(internalRect.value);
+  if (handle) {
+    if (props.canResize?.(currentRect, handle) === false) return;
+  } else if (props.canDrag?.(currentRect) === false) {
+    return;
+  }
 
   refreshArea();
   state.pointerId = typeof source.pointerId === 'number' ? source.pointerId : null;

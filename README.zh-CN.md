@@ -88,6 +88,8 @@ pnpm dev
 | `draggable` | `boolean` | `true` | 是否可拖拽 |
 | `dragHandle` | `string` | - | 拖拽触发区域的 CSS 选择器；设置后仅方框内命中该选择器的元素可发起拖拽 |
 | `dragCancel` | `string` | - | 拖拽排除区域的 CSS 选择器；命中元素（如表单、按钮）不会触发拖拽 |
+| `canDrag` | `(value: MovableBoxRect) => boolean` | - | 拖拽前置守卫；返回 `false` 时拒绝本次拖拽，且不修改模型 |
+| `canResize` | `(value: MovableBoxRect, handle: HandlePosition) => boolean` | - | 缩放前置守卫；返回 `false` 时拒绝本次缩放，且不修改模型 |
 | `resizable` | `boolean` | `true` | 是否可调整大小（推荐名称） |
 | `resizeable` | `boolean` | `true` | `resizable` 的兼容旧别名，已废弃 |
 | `limitAreaForParent` | `boolean` | `true` | 是否限制在父元素区域内 |

@@ -750,6 +750,38 @@ describe('MovableBox', () => {
     expect(wrapper.emitted('drag-start')).toBeFalsy();
   });
 
+  it('rejects interactions via canDrag and canResize guards without touching the model', async () => {
+    const blocked = mountBox({ canDrag: () => false, canResize: () => false, handles: ['br'] });
+
+    await blocked.get('.auto-draggable').trigger('pointerdown', { clientX: 0, clientY: 0 });
+    expect(blocked.emitted('drag-start')).toBeFalsy();
+    expect(blocked.emitted('active')).toBeFalsy();
+
+    await pointerDrag(blocked, [0, 0], [20, 20], '.handle-br');
+    expect(blocked.emitted('resize-start')).toBeFalsy();
+    expect(blocked.emitted('update:modelValue')).toBeFalsy();
+    expect(blocked.emitted('resize-cancel')).toBeFalsy();
+  });
+
+  it('only blocks the guarded interaction type and passes the current rectangle', async () => {
+    const seen: Array<Record<string, unknown>> = [];
+    const wrapper = mountBox({
+      handles: ['br'],
+      canDrag: (value: Record<string, number>) => {
+        seen.push(value);
+        return false;
+      }
+    });
+
+    await wrapper.get('.auto-draggable').trigger('pointerdown', { clientX: 0, clientY: 0 });
+    expect(wrapper.emitted('drag-start')).toBeFalsy();
+
+    await pointerDrag(wrapper, [0, 0], [20, 20], '.handle-br');
+    expect(wrapper.emitted('resize-start')).toBeTruthy();
+    expect(seen[0]).toMatchObject({ left: 10, top: 20, width: 120, height: 80 });
+    document.documentElement.dispatchEvent(pointerEvent('pointerup', 0, 0));
+  });
+
   it.each(['disabled', 'initRect'] as const)(
     'cancels an active interaction when %s becomes true',
     async prop => {
