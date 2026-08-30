@@ -173,6 +173,8 @@ interface MovableBoxRect {
 
 交互处理顺序为：方向限制 → 网格吸附 → 元素吸附 → 边界限制 → 碰撞校验。高级事件只在状态变化时触发，不会在每个相同的拖拽帧重复触发。目标矩形、网格、阈值和边距均使用 `unitType` 对应的坐标单位；`unitType="%"` 时数值代表百分点。
 
+强制中止不等于取消：设置 `disabled` 或 `initRect`、或 `active` 变为 `false` 时，进行中的交互会就地结束——矩形不会还原，也不会触发取消事件。只有显式取消路径（Escape、`pointercancel`、指针捕获丢失、`cancelInteraction()`）才会恢复交互前矩形并触发 `drag-cancel` / `resize-cancel`。
+
 ```ts
 interface SnapEventPayload {
   snapped: boolean

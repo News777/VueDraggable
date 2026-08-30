@@ -126,7 +126,6 @@ Visit http://localhost:5173 for the interactive demo.
 | `enableTransition` | `boolean` | `false` | Enable transition animation |
 | `keyboardEnabled` | `boolean` | `false` | Enable keyboard control |
 | `keyboardStep` | `number` | `1` | Step for arrow-key movement and Shift + arrow-key resizing |
-| `keyboardStep` | `number` | `1` | Keyboard movement step |
 
 #### HandlePosition Type
 
@@ -173,6 +172,8 @@ interface MovableBoxRect {
 | `collision` | `(value: CollisionEventPayload)` | Collision state, direction, or target changed |
 
 Interactive changes are resolved in this order: direction filtering → grid snap → element snap → bounds → collision. Advanced events are emitted only when their state changes. Targets, grid size, thresholds, and insets use the coordinate unit selected by `unitType`; with `unitType="%"`, values are percentage points.
+
+Forced aborts are not cancellations: setting `disabled` or `initRect`, or `active` becoming `false`, ends an in-progress interaction where it stands — the rectangle is not restored and no cancel events are emitted. Only the explicit cancellation paths (Escape, `pointercancel`, lost pointer capture, `cancelInteraction()`) restore the pre-interaction rectangle and emit `drag-cancel` / `resize-cancel`.
 
 ```ts
 interface SnapEventPayload {
