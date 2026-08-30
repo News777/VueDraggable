@@ -838,14 +838,23 @@ function dropPendingFrame() {
   pendingEvent = null;
 }
 
-function teardownInteraction() {
+function closeInteraction() {
   state.isDragging = false;
   state.isResizing = false;
   state.handle = null;
   removeInteractionListeners();
   releasePointer();
+}
+
+// Emits 'inactive' when the box is internally active but props.active is still false.
+function finalizeInteraction() {
   clearAdvancedState();
   if (!props.active) setActive(false);
+}
+
+function teardownInteraction() {
+  closeInteraction();
+  finalizeInteraction();
 }
 
 function abortInteraction() {
@@ -857,19 +866,14 @@ function cancelInteraction(source: Event | null = null) {
   const wasDragging = state.isDragging;
   const wasResizing = state.isResizing;
   dropPendingFrame();
-  state.isDragging = false;
-  state.isResizing = false;
-  state.handle = null;
-  removeInteractionListeners();
-  releasePointer();
+  closeInteraction();
   if (wasDragging || wasResizing) {
     const oldValue = cloneRect(state.beforeInteraction);
     commitRect(oldValue);
     if (wasDragging) emit('drag-cancel', source, oldValue, cloneRect(oldValue));
     else emit('resize-cancel', source, oldValue, cloneRect(oldValue));
   }
-  clearAdvancedState();
-  if (!props.active) setActive(false);
+  finalizeInteraction();
 }
 
 function deactivateComponent() {
@@ -1050,8 +1054,8 @@ defineExpose<MovableBoxExpose>({
 
 onUnmounted(() => {
   dropPendingFrame();
-  removeInteractionListeners();
-  releasePointer();
+  closeInteraction();
+  // Skip finalizeInteraction during unmount: setActive(false) would emit 'inactive' while tearing down.
   clearAdvancedState();
 });
 </script>

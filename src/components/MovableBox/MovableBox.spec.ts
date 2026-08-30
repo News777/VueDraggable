@@ -918,4 +918,13 @@ describe('MovableBox', () => {
 
     expect(wrapper.emitted('update:modelValue')).toBeFalsy();
   });
+
+  it('does not emit inactive when unmounting during an interaction', async () => {
+    const wrapper = mountBox({ active: false });
+    await wrapper.get('.auto-draggable').trigger('pointerdown', { clientX: 0, clientY: 0 });
+    wrapper.unmount();
+    await flushFrame();
+
+    expect(wrapper.emitted('inactive')).toBeFalsy();
+  });
 });
