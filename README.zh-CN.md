@@ -145,12 +145,12 @@ interface MovableBoxRect {
 | 事件名 | 参数 | 说明 |
 |--------|------|------|
 | `update:modelValue` | `(value: MovableBoxRect)` | v-model 更新时触发 |
-| `drag-start` | `(event: MouseEvent \| TouchEvent, value: MovableBoxRect)` | 开始拖拽时触发 |
+| `drag-start` | `(event: PointerEvent, value: MovableBoxRect)` | 开始拖拽时触发 |
 | `drag` | `(value: MovableBoxRect)` | 拖拽过程中触发（节流） |
-| `drag-stop` | `(event: MouseEvent \| TouchEvent, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | 停止拖拽时触发 |
-| `resize-start` | `(event: MouseEvent \| TouchEvent, value: MovableBoxRect)` | 开始调整大小时触发 |
+| `drag-stop` | `(event: PointerEvent, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | 停止拖拽时触发 |
+| `resize-start` | `(event: PointerEvent, value: MovableBoxRect)` | 开始调整大小时触发 |
 | `resize` | `(value: MovableBoxRect)` | 调整大小过程中触发（节流） |
-| `resize-stop` | `(event: MouseEvent \| TouchEvent, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | 停止调整大小时触发 |
+| `resize-stop` | `(event: PointerEvent, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | 停止调整大小时触发 |
 | `active` | `(value: MovableBoxRect)` | 组件被激活时触发 |
 | `inactive` | `(value: MovableBoxRect)` | 组件失去激活时触发 |
 | `disabled` | `(value: boolean)` | 禁用状态变化时触发 |

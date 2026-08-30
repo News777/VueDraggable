@@ -254,30 +254,3 @@ export const throttle = <T extends (...args: any[]) => any>(
 export const isTouchDevice = (): boolean => {
   return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 };
-
-/**
- * 获取事件坐标
- * 统一处理鼠标和触摸事件
- */
-export const getEventCoords = (event: MouseEvent | TouchEvent): { x: number; y: number } => {
-  if ('touches' in event && event.touches.length > 0) {
-    return {
-      x: event.touches[0].clientX,
-      y: event.touches[0].clientY
-    };
-  }
-  
-  if ('changedTouches' in event && event.changedTouches.length > 0) {
-    return {
-      x: event.changedTouches[0].clientX,
-      y: event.changedTouches[0].clientY
-    };
-  }
-  
-  // MouseEvent fallback
-  const mouseEvent = event as MouseEvent;
-  return {
-    x: mouseEvent.clientX,
-    y: mouseEvent.clientY
-  };
-};

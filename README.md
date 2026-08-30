@@ -145,12 +145,12 @@ interface MovableBoxRect {
 | Event | Parameters | Description |
 |-------|------------|-------------|
 | `update:modelValue` | `(value: MovableBoxRect)` | Emitted on v-model update |
-| `drag-start` | `(event: MouseEvent \| TouchEvent, value: MovableBoxRect)` | Drag start |
+| `drag-start` | `(event: PointerEvent, value: MovableBoxRect)` | Drag start |
 | `drag` | `(value: MovableBoxRect)` | During drag (throttled) |
-| `drag-stop` | `(event: MouseEvent \| TouchEvent, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | Drag stop |
-| `resize-start` | `(event: MouseEvent \| TouchEvent, value: MovableBoxRect)` | Resize start |
+| `drag-stop` | `(event: PointerEvent, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | Drag stop |
+| `resize-start` | `(event: PointerEvent, value: MovableBoxRect)` | Resize start |
 | `resize` | `(value: MovableBoxRect)` | During resize (throttled) |
-| `resize-stop` | `(event: MouseEvent \| TouchEvent, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | Resize stop |
+| `resize-stop` | `(event: PointerEvent, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | Resize stop |
 | `active` | `(value: MovableBoxRect)` | Component activated |
 | `inactive` | `(value: MovableBoxRect)` | Component deactivated |
 | `disabled` | `(value: boolean)` | Disabled state changed |

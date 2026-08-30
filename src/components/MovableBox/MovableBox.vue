@@ -12,8 +12,7 @@
     }"
     :style="movableStyle"
     tabindex="0"
-    @mousedown="handleMouseDown($event, null)"
-    @touchstart="handleTouchStart($event, null)"
+    @pointerdown="handlePointerDown($event, null)"
     @dblclick="emit('dblclick', $event)"
     @keydown="handleKeyDown"
   >
@@ -36,8 +35,7 @@
         class="handle"
         :class="`handle-${handle}`"
         :style="handleStyle"
-        @mousedown.stop.prevent="handleMouseDown($event, handle)"
-        @touchstart.stop.prevent="handleTouchStart($event, handle)"
+        @pointerdown.stop.prevent="handlePointerDown($event, handle)"
       ></div>
     </template>
 
@@ -73,7 +71,6 @@ import type { SnapAxes, SnapResult } from './utils/snap';
 import {
   addEvent,
   deepClone,
-  getEventCoords,
   keepDecimalsToNum,
   removeEvent,
   setValUnit,
@@ -137,17 +134,17 @@ const props = defineProps({
 const emit = defineEmits<{
   (event: 'update:modelValue', value: ExtendsMovableBox): void;
   (event: 'drag', value: ExtendsMovableBox): void;
-  (event: 'drag-start', source: MouseEvent | TouchEvent, value: ExtendsMovableBox): void;
+  (event: 'drag-start', source: PointerEvent, value: ExtendsMovableBox): void;
   (
     event: 'drag-stop',
-    source: MouseEvent | TouchEvent,
+    source: PointerEvent,
     oldValue: ExtendsMovableBox,
     newValue: ExtendsMovableBox
   ): void;
-  (event: 'resize-start', source: MouseEvent | TouchEvent, value: ExtendsMovableBox): void;
+  (event: 'resize-start', source: PointerEvent, value: ExtendsMovableBox): void;
   (
     event: 'resize-stop',
-    source: MouseEvent | TouchEvent,
+    source: PointerEvent,
     oldValue: ExtendsMovableBox,
     newValue: ExtendsMovableBox
   ): void;
@@ -179,7 +176,8 @@ const state = reactive({
   parentElement: null as HTMLElement | null,
   parentWidth: 0,
   parentHeight: 0,
-  eventElement: null as HTMLElement | null
+  eventElement: null as HTMLElement | null,
+  pointerId: null as number | null
 });
 
 watch(
@@ -667,13 +665,12 @@ const resizeFromHandle = (
 };
 
 let rafId: number | null = null;
-let pendingEvent: MouseEvent | TouchEvent | null = null;
+let pendingEvent: PointerEvent | null = null;
 
-const processInteraction = (source: MouseEvent | TouchEvent) => {
+const processInteraction = (source: PointerEvent) => {
   if (props.disabled || props.initRect || (!state.isDragging && !state.isResizing)) return;
-  const coords = getEventCoords(source);
-  const deltaX = scaledDelta(coords.x - state.initX, 'horizontal');
-  const deltaY = scaledDelta(coords.y - state.initY, 'vertical');
+  const deltaX = scaledDelta(source.clientX - state.initX, 'horizontal');
+  const deltaY = scaledDelta(source.clientY - state.initY, 'vertical');
   const previous = cloneRect(internalRect.value);
 
   if (state.isDragging) {
@@ -724,7 +721,7 @@ const processInteraction = (source: MouseEvent | TouchEvent) => {
   }
 };
 
-const queueInteraction = (source: MouseEvent | TouchEvent) => {
+const queueInteraction = (source: PointerEvent) => {
   if (!state.active || props.disabled || props.initRect) return;
   pendingEvent = source;
   if (rafId !== null) return;
@@ -736,34 +733,71 @@ const queueInteraction = (source: MouseEvent | TouchEvent) => {
   });
 };
 
-const handleMouseMove = (source: MouseEvent) => queueInteraction(source);
-const handleTouchMove = (source: TouchEvent) => {
-  if (source.cancelable) source.preventDefault();
+const isOwnedPointer = (source: PointerEvent) =>
+  state.pointerId === null || source.pointerId === state.pointerId;
+
+const handlePointerMove = (source: PointerEvent) => {
+  if (!isOwnedPointer(source)) return;
   queueInteraction(source);
+};
+const handlePointerUp = (source: PointerEvent) => {
+  if (!isOwnedPointer(source)) return;
+  endInteraction(source);
+};
+const handlePointerCancel = (source: PointerEvent) => {
+  if (!isOwnedPointer(source)) return;
+  endInteraction(source);
+};
+const handleLostPointerCapture = (source: PointerEvent) => {
+  if (state.isDragging || state.isResizing) endInteraction(source);
 };
 
 const addInteractionListeners = () => {
   const element = state.eventElement;
   if (!element) return;
   const options = { passive: false };
-  addEvent(element, 'mousemove', handleMouseMove, options);
-  addEvent(element, 'mouseup', handleMouseUp, options);
-  addEvent(element, 'touchmove', handleTouchMove, options);
-  addEvent(element, 'touchend', handleTouchEnd, options);
-  addEvent(element, 'touchcancel', handleTouchEnd, options);
-  addEvent(element, 'mouseleave', handleMouseUp, options);
+  addEvent(element, 'pointermove', handlePointerMove, options);
+  addEvent(element, 'pointerup', handlePointerUp, options);
+  addEvent(element, 'pointercancel', handlePointerCancel, options);
+  const captureTarget = movableRef.value;
+  if (captureTarget) {
+    addEvent(captureTarget, 'lostpointercapture', handleLostPointerCapture, options);
+  }
 };
 
 const removeInteractionListeners = () => {
   const element = state.eventElement;
   if (!element) return;
-  removeEvent(element, 'mousemove', handleMouseMove, false);
-  removeEvent(element, 'mouseup', handleMouseUp, false);
-  removeEvent(element, 'touchmove', handleTouchMove, false);
-  removeEvent(element, 'touchend', handleTouchEnd, false);
-  removeEvent(element, 'touchcancel', handleTouchEnd, false);
-  removeEvent(element, 'mouseleave', handleMouseUp, false);
+  removeEvent(element, 'pointermove', handlePointerMove, false);
+  removeEvent(element, 'pointerup', handlePointerUp, false);
+  removeEvent(element, 'pointercancel', handlePointerCancel, false);
+  const captureTarget = movableRef.value;
+  if (captureTarget) {
+    removeEvent(captureTarget, 'lostpointercapture', handleLostPointerCapture, false);
+  }
   state.eventElement = null;
+};
+
+const capturePointer = (source: PointerEvent) => {
+  const target = movableRef.value;
+  if (!target || state.pointerId === null) return;
+  try {
+    target.setPointerCapture(state.pointerId);
+  } catch {
+    // Pointer capture is unavailable in some environments (e.g. jsdom)
+  }
+};
+
+const releasePointer = () => {
+  const target = movableRef.value;
+  const pointerId = state.pointerId;
+  state.pointerId = null;
+  if (!target || pointerId === null) return;
+  try {
+    if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
+  } catch {
+    // Capture may already be lost
+  }
 };
 
 function cancelInteraction() {
@@ -776,6 +810,7 @@ function cancelInteraction() {
   state.isResizing = false;
   state.handle = null;
   removeInteractionListeners();
+  releasePointer();
   clearAdvancedState();
   if (!props.active) setActive(false);
 }
@@ -785,15 +820,15 @@ function deactivateComponent() {
   setActive(false);
 }
 
-const startInteraction = (source: MouseEvent | TouchEvent, handle: HandlePosition | null) => {
+const startInteraction = (source: PointerEvent, handle: HandlePosition | null) => {
   if (props.disabled || props.initRect) return;
   if (handle && (!isResizable.value || !isHandleAllowed(handle))) return;
   if (!handle && !props.draggable) return;
 
   refreshArea();
-  const coords = getEventCoords(source);
-  state.initX = coords.x;
-  state.initY = coords.y;
+  state.pointerId = typeof source.pointerId === 'number' ? source.pointerId : null;
+  state.initX = source.clientX;
+  state.initY = source.clientY;
   state.beforeInteraction = cloneRect(internalRect.value);
   state.handle = handle;
   state.isDragging = !handle;
@@ -804,16 +839,13 @@ const startInteraction = (source: MouseEvent | TouchEvent, handle: HandlePositio
   if (state.isResizing) emit('resize-start', source, cloneRect(state.beforeInteraction));
   state.eventElement = document.documentElement;
   addInteractionListeners();
+  capturePointer(source);
 };
 
-const handleMouseDown = (source: MouseEvent, handle: HandlePosition | null) =>
+const handlePointerDown = (source: PointerEvent, handle: HandlePosition | null) =>
   startInteraction(source, handle);
-const handleTouchStart = (source: TouchEvent, handle: HandlePosition | null) => {
-  if (source.cancelable) source.preventDefault();
-  startInteraction(source, handle);
-};
 
-function endInteraction(source: MouseEvent | TouchEvent) {
+function endInteraction(source: PointerEvent) {
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
     rafId = null;
@@ -834,15 +866,9 @@ function endInteraction(source: MouseEvent | TouchEvent) {
   state.isResizing = false;
   state.handle = null;
   removeInteractionListeners();
+  releasePointer();
   clearAdvancedState();
   if (!props.active) setActive(false);
-}
-
-function handleMouseUp(source: MouseEvent) {
-  endInteraction(source);
-}
-function handleTouchEnd(source: TouchEvent) {
-  endInteraction(source);
 }
 
 const moveWithKeyboard = (direction: DragDirection, distance: number) => {
@@ -905,6 +931,7 @@ onUnmounted(() => {
   if (rafId !== null) cancelAnimationFrame(rafId);
   pendingEvent = null;
   removeInteractionListeners();
+  releasePointer();
   clearAdvancedState();
 });
 </script>

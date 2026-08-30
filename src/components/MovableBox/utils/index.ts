@@ -8,8 +8,7 @@ export {
   restrictToBounds,
   keepDecimalsToNum,
   figureRatioMax,
-  deepClone,
-  getEventCoords
+  deepClone
 } from '../utils';
 
 // 新增工具函数
