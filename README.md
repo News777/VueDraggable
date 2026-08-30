@@ -86,6 +86,8 @@ Visit http://localhost:5173 for the interactive demo.
 | `isKeepDecimals` | `boolean` | `false` | Keep decimal places |
 | `decimalPlaces` | `number` | `2` | Decimal places to keep |
 | `draggable` | `boolean` | `true` | Enable dragging |
+| `dragHandle` | `string` | - | CSS selector restricting where a drag can start; when set, only matching elements inside the box start drags |
+| `dragCancel` | `string` | - | CSS selector for elements (e.g. forms, buttons) that must not start a drag |
 | `resizable` | `boolean` | `true` | Enable resizing (preferred name) |
 | `resizeable` | `boolean` | `true` | Deprecated alias of `resizable` for backward compatibility |
 | `limitAreaForParent` | `boolean` | `true` | Limit to parent element |

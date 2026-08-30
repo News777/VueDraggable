@@ -15,7 +15,7 @@ const makeModel = (overrides: Record<string, unknown> = {}) => ({
   ...overrides
 });
 
-const mountBox = (overrides: Record<string, unknown> = {}) => {
+const mountBox = (overrides: Record<string, unknown> = {}, slots: Record<string, string> = {}) => {
   const wrapper = mount(MovableBox, {
     props: {
       modelValue: makeModel(),
@@ -24,6 +24,7 @@ const mountBox = (overrides: Record<string, unknown> = {}) => {
       limitAreaForParent: false,
       ...overrides
     },
+    slots,
     attachTo: document.body
   });
   const parent = wrapper.element.parentElement as HTMLElement;
@@ -643,6 +644,49 @@ describe('MovableBox', () => {
     const readonly = mountBox({ initRect: true });
     await readonly.get('.auto-draggable').trigger('pointerdown', { clientX: 0, clientY: 0 });
     expect(readonly.emitted('drag-start')).toBeFalsy();
+  });
+
+  it('starts drags only from elements matching dragHandle', async () => {
+    const wrapper = mountBox(
+      { dragHandle: '.grip' },
+      { default: '<button class="grip">move</button><button class="other">still</button>' }
+    );
+
+    await wrapper.get('.other').trigger('pointerdown', { clientX: 0, clientY: 0 });
+    expect(wrapper.emitted('drag-start')).toBeFalsy();
+
+    await wrapper.get('.grip').trigger('pointerdown', { clientX: 0, clientY: 0 });
+    expect(wrapper.emitted('drag-start')).toBeTruthy();
+    document.documentElement.dispatchEvent(pointerEvent('pointerup', 0, 0));
+  });
+
+  it('keeps resize handles working while dragHandle is configured', async () => {
+    const wrapper = mountBox(
+      { dragHandle: '.grip', handles: ['br'] },
+      { default: '<span class="grip">grip</span>' }
+    );
+    await pointerDrag(wrapper, [0, 0], [10, 10], '.handle-br');
+    expect(wrapper.emitted('resize-start')).toBeTruthy();
+  });
+
+  it('ignores drag starts inside dragCancel areas', async () => {
+    const wrapper = mountBox(
+      { dragCancel: '.no-drag' },
+      { default: '<button class="no-drag">form</button>' }
+    );
+
+    await wrapper.get('.no-drag').trigger('pointerdown', { clientX: 0, clientY: 0 });
+    expect(wrapper.emitted('drag-start')).toBeFalsy();
+
+    await wrapper.get('.auto-draggable').trigger('pointerdown', { clientX: 0, clientY: 0 });
+    expect(wrapper.emitted('drag-start')).toBeTruthy();
+    document.documentElement.dispatchEvent(pointerEvent('pointerup', 0, 0));
+  });
+
+  it('treats invalid drag selectors as blocking rather than crashing', async () => {
+    const wrapper = mountBox({ dragHandle: '<<<' });
+    await wrapper.get('.auto-draggable').trigger('pointerdown', { clientX: 0, clientY: 0 });
+    expect(wrapper.emitted('drag-start')).toBeFalsy();
   });
 
   it.each(['disabled', 'initRect'] as const)(

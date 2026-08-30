@@ -85,6 +85,8 @@ const props = defineProps({
   isKeepDecimals: { type: Boolean, default: false },
   decimalPlaces: { type: Number, default: 2 },
   draggable: { type: Boolean, default: true },
+  dragHandle: String,
+  dragCancel: String,
   resizable: { type: Boolean, default: undefined },
   resizeable: { type: Boolean, default: undefined },
   limitAreaForParent: { type: Boolean, default: true },
@@ -842,8 +844,27 @@ const startInteraction = (source: PointerEvent, handle: HandlePosition | null) =
   capturePointer(source);
 };
 
-const handlePointerDown = (source: PointerEvent, handle: HandlePosition | null) =>
+const isDragAllowedFrom = (target: EventTarget | null) => {
+  if (!(target instanceof Element)) return true;
+  const root = movableRef.value;
+  if (!root) return true;
+  const closestInBox = (selector: string) => {
+    try {
+      const matched = target.closest(selector);
+      return matched instanceof Element && root.contains(matched) ? matched : null;
+    } catch {
+      return null;
+    }
+  };
+  if (props.dragCancel && closestInBox(props.dragCancel)) return false;
+  if (props.dragHandle) return Boolean(closestInBox(props.dragHandle));
+  return true;
+};
+
+const handlePointerDown = (source: PointerEvent, handle: HandlePosition | null) => {
+  if (!handle && !isDragAllowedFrom(source.target)) return;
   startInteraction(source, handle);
+};
 
 function endInteraction(source: PointerEvent) {
   if (rafId !== null) {

@@ -63,6 +63,10 @@ export interface MovableBoxProps<T extends object = object> {
   isKeepDecimals?: boolean;
   decimalPlaces?: number;
   draggable?: boolean;
+  /** CSS selector restricting where a drag can start. When set, only matching elements inside the box start drags. */
+  dragHandle?: string;
+  /** CSS selector for elements that must not start a drag. */
+  dragCancel?: string;
   resizable?: boolean;
   /** @deprecated Use resizable. */
   resizeable?: boolean;
