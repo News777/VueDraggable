@@ -156,6 +156,18 @@ const emit = defineEmits<{
     oldValue: ExtendsMovableBox,
     newValue: ExtendsMovableBox
   ): void;
+  (
+    event: 'drag-cancel',
+    source: Event | null,
+    oldValue: ExtendsMovableBox,
+    newValue: ExtendsMovableBox
+  ): void;
+  (
+    event: 'resize-cancel',
+    source: Event | null,
+    oldValue: ExtendsMovableBox,
+    newValue: ExtendsMovableBox
+  ): void;
   (event: 'resize', value: ExtendsMovableBox): void;
   (event: 'move', value: ExtendsMovableBox): void;
   (event: 'active', value: ExtendsMovableBox): void;
@@ -200,7 +212,7 @@ watch(
 watch(
   () => props.active,
   value => {
-    if (!value && (state.isDragging || state.isResizing)) cancelInteraction();
+    if (!value && (state.isDragging || state.isResizing)) abortInteraction();
     else setActive(value);
   },
   { flush: 'sync' }
@@ -210,14 +222,14 @@ watch(
   () => props.disabled,
   value => {
     emit('disabled', value);
-    if (value) cancelInteraction();
+    if (value) abortInteraction();
   }
 );
 
 watch(
   () => props.initRect,
   value => {
-    if (value) cancelInteraction();
+    if (value) abortInteraction();
   }
 );
 
@@ -756,10 +768,10 @@ const handlePointerUp = (source: PointerEvent) => {
 };
 const handlePointerCancel = (source: PointerEvent) => {
   if (!isOwnedPointer(source)) return;
-  endInteraction(source);
+  cancelInteraction(source);
 };
 const handleLostPointerCapture = (source: PointerEvent) => {
-  if (state.isDragging || state.isResizing) endInteraction(source);
+  if (state.isDragging || state.isResizing) cancelInteraction(source);
 };
 
 const addInteractionListeners = () => {
@@ -810,7 +822,7 @@ const releasePointer = () => {
   }
 };
 
-function cancelInteraction() {
+function abortInteraction() {
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
     rafId = null;
@@ -825,8 +837,31 @@ function cancelInteraction() {
   if (!props.active) setActive(false);
 }
 
+function cancelInteraction(source: Event | null = null) {
+  const wasDragging = state.isDragging;
+  const wasResizing = state.isResizing;
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+  pendingEvent = null;
+  state.isDragging = false;
+  state.isResizing = false;
+  state.handle = null;
+  removeInteractionListeners();
+  releasePointer();
+  if (wasDragging || wasResizing) {
+    const oldValue = cloneRect(state.beforeInteraction);
+    commitRect(oldValue);
+    if (wasDragging) emit('drag-cancel', source, oldValue, cloneRect(oldValue));
+    else emit('resize-cancel', source, oldValue, cloneRect(oldValue));
+  }
+  clearAdvancedState();
+  if (!props.active) setActive(false);
+}
+
 function deactivateComponent() {
-  cancelInteraction();
+  abortInteraction();
   setActive(false);
 }
 
@@ -968,11 +1003,15 @@ const keyboard = useKeyboard(
     active: state.active,
     dragDirections: props.dragDirections,
     resizeDirections: props.resizeDirections,
-    focusedHandle: focusedHandle.value
+    focusedHandle: focusedHandle.value,
+    interacting: state.isDragging || state.isResizing
   }),
-  moveWithKeyboard,
-  resizeWithKeyboard,
-  deactivateComponent
+  {
+    move: moveWithKeyboard,
+    resize: resizeWithKeyboard,
+    deactivate: deactivateComponent,
+    cancel: source => cancelInteraction(source)
+  }
 );
 const handleKeyDown = keyboard.handleKeyDown;
 
@@ -997,7 +1036,8 @@ defineExpose<MovableBoxExpose>({
   setSize: (width, height) => commitRect({ ...internalRect.value, width, height }),
   reset: () => commitRect(cloneRect(initialRect)),
   activate: () => setActive(true),
-  deactivate: deactivateComponent
+  deactivate: deactivateComponent,
+  cancelInteraction: (source: Event | null = null) => cancelInteraction(source)
 });
 
 onUnmounted(() => {

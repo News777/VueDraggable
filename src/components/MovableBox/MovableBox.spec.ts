@@ -655,12 +655,15 @@ describe('MovableBox', () => {
     document.documentElement.dispatchEvent(pointerEvent('pointermove', 40, 50));
     document.documentElement.dispatchEvent(pointerEvent('pointercancel', 40, 50));
     await nextTick();
+    expect(wrapper.emitted('drag-cancel')).toBeTruthy();
+    expect(wrapper.emitted('drag-stop')).toBeFalsy();
     const updatesAfterCancel = wrapper.emitted('update:modelValue')?.length ?? 0;
 
     document.documentElement.dispatchEvent(pointerEvent('pointermove', 80, 90));
     await flushFrame();
     expect(wrapper.emitted('update:modelValue')?.length ?? 0).toBe(updatesAfterCancel);
     expect(wrapper.get('.auto-draggable').classes()).not.toContain('is-dragging');
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('left: 10px');
   });
 
   it('emits immutable updates from exposed methods and resets to the initial model', async () => {
@@ -777,39 +780,69 @@ describe('MovableBox', () => {
     expect(wrapper.emitted('inactive')).toBeTruthy();
   });
 
-  it('cancels an active interaction when deactivated by method or Escape', async () => {
+  it('aborts an active interaction when deactivated by method', async () => {
     const methodWrapper = mountBox();
     await methodWrapper.get('.auto-draggable').trigger('pointerdown', { clientX: 0, clientY: 0 });
     (methodWrapper.vm as unknown as { deactivate: () => void }).deactivate();
-    document.documentElement.dispatchEvent(
-      pointerEvent('pointermove', 100, 100)
-    );
+    document.documentElement.dispatchEvent(pointerEvent('pointermove', 100, 100));
     await flushFrame();
     expect(methodWrapper.emitted('update:modelValue')).toBeFalsy();
     expect(methodWrapper.get('.auto-draggable').classes()).not.toContain('is-dragging');
+  });
 
-    const escapeWrapper = mountBox({ active: true, keyboardEnabled: true });
-    await escapeWrapper.get('.auto-draggable').trigger('pointerdown', { clientX: 0, clientY: 0 });
-    await escapeWrapper.get('.auto-draggable').trigger('keydown', { key: 'Escape' });
-    document.documentElement.dispatchEvent(
-      pointerEvent('pointermove', 100, 100)
-    );
+  it('cancels a drag with Escape, restores the rectangle, and skips drag-stop', async () => {
+    const wrapper = mountBox();
+    await pointerDrag(wrapper, [0, 0], [30, 0], '.auto-draggable', false);
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('left: 40px');
+
+    await wrapper.get('.auto-draggable').trigger('keydown', { key: 'Escape' });
+    await nextTick();
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('left: 10px');
+    expect(wrapper.emitted('drag-cancel')?.[0]?.[0]).toBeInstanceOf(KeyboardEvent);
+    expect(wrapper.emitted('drag-cancel')?.[0]?.[1]).toMatchObject({ left: 10 });
+    expect(wrapper.emitted('drag-stop')).toBeFalsy();
+
+    document.documentElement.dispatchEvent(pointerEvent('pointermove', 100, 100));
     await flushFrame();
-    expect(escapeWrapper.emitted('update:modelValue')).toBeFalsy();
-    expect(escapeWrapper.get('.auto-draggable').classes()).not.toContain('is-dragging');
-    expect(escapeWrapper.emitted('inactive')).toBeTruthy();
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('left: 10px');
+  });
+
+  it('cancels a resize with Escape and emits resize-cancel', async () => {
+    const wrapper = mountBox({ handles: ['br'] });
+    await pointerDrag(wrapper, [0, 0], [30, 0], '.handle-br', false);
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('width: 150px');
+
+    await wrapper.get('.auto-draggable').trigger('keydown', { key: 'Escape' });
+    await nextTick();
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('width: 120px');
+    expect(wrapper.emitted('resize-cancel')).toBeTruthy();
+    expect(wrapper.emitted('resize-stop')).toBeFalsy();
+  });
+
+  it('cancels an interaction through the exposed cancelInteraction method', async () => {
+    const wrapper = mountBox();
+    await pointerDrag(wrapper, [0, 0], [30, 0], '.auto-draggable', false);
+    (wrapper.vm as unknown as { cancelInteraction: () => void }).cancelInteraction();
+    await nextTick();
+
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('left: 10px');
+    expect(wrapper.emitted('drag-cancel')?.[0]?.[0]).toBeNull();
+    expect(wrapper.emitted('drag-stop')).toBeFalsy();
+  });
+
+  it('ignores Escape while idle without keyboardEnabled', async () => {
+    const wrapper = mountBox();
+    await wrapper.get('.auto-draggable').trigger('keydown', { key: 'Escape' });
+    expect(wrapper.emitted('inactive')).toBeFalsy();
+    expect(wrapper.emitted('drag-cancel')).toBeFalsy();
   });
 
   it('cancels a pending animation frame and document listeners on unmount', async () => {
     const wrapper = mountBox();
     await wrapper.get('.auto-draggable').trigger('pointerdown', { clientX: 0, clientY: 0 });
-    document.documentElement.dispatchEvent(
-      pointerEvent('pointermove', 100, 100)
-    );
+    document.documentElement.dispatchEvent(pointerEvent('pointermove', 100, 100));
     wrapper.unmount();
-    document.documentElement.dispatchEvent(
-      pointerEvent('pointermove', 150, 150)
-    );
+    document.documentElement.dispatchEvent(pointerEvent('pointermove', 150, 150));
     document.documentElement.dispatchEvent(pointerEvent('pointerup', 0, 0));
     await flushFrame();
 

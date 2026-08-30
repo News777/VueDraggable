@@ -9,6 +9,14 @@ interface UseKeyboardOptions {
   dragDirections: DragDirection[];
   resizeDirections: HandlePosition[];
   focusedHandle: HandlePosition | null;
+  interacting: boolean;
+}
+
+interface UseKeyboardCallbacks {
+  move: (direction: DragDirection, distance: number) => void;
+  resize: (handle: HandlePosition, direction: DragDirection, distance: number) => void;
+  deactivate: () => void;
+  cancel: (source: Event | null) => void;
 }
 
 const keyMap: Partial<Record<string, DragDirection>> = {
@@ -36,21 +44,19 @@ const oppositeDirection: Record<DragDirection, DragDirection> = {
   right: 'left'
 };
 
-export function useKeyboard(
-  getOptions: () => UseKeyboardOptions,
-  move: (direction: DragDirection, distance: number) => void,
-  resize: (handle: HandlePosition, direction: DragDirection, distance: number) => void,
-  deactivate: () => void
-) {
+export function useKeyboard(getOptions: () => UseKeyboardOptions, callbacks: UseKeyboardCallbacks) {
   const handleKeyDown = (event: KeyboardEvent) => {
     const options = getOptions();
-    if (!options.enabled || options.disabled || !options.active) return;
+    const interactive = options.interacting;
+    if (!interactive && (!options.enabled || options.disabled || !options.active)) return;
 
     if (event.key === 'Escape') {
       event.preventDefault();
-      deactivate();
+      if (interactive) callbacks.cancel(event);
+      else callbacks.deactivate();
       return;
     }
+    if (interactive) return;
     if (options.readOnly) return;
 
     const direction = keyMap[event.key];
@@ -61,7 +67,11 @@ export function useKeyboard(
     if (options.focusedHandle && options.resizeDirections.includes(options.focusedHandle)) {
       if (!handleAxes[options.focusedHandle].includes(direction)) return;
       event.preventDefault();
-      resize(options.focusedHandle, event.shiftKey ? oppositeDirection[direction] : direction, step);
+      callbacks.resize(
+        options.focusedHandle,
+        event.shiftKey ? oppositeDirection[direction] : direction,
+        step
+      );
       return;
     }
 
@@ -71,13 +81,13 @@ export function useKeyboard(
         : options.resizeDirections[0];
       if (!handle) return;
       event.preventDefault();
-      resize(handle, direction, step);
+      callbacks.resize(handle, direction, step);
       return;
     }
 
     if (!options.dragDirections.includes(direction)) return;
     event.preventDefault();
-    move(direction, step);
+    callbacks.move(direction, step);
   };
 
   return { handleKeyDown };

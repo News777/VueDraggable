@@ -154,6 +154,8 @@ interface MovableBoxRect {
 | `resize-start` | `(event: PointerEvent, value: MovableBoxRect)` | Resize start |
 | `resize` | `(value: MovableBoxRect)` | During resize (throttled) |
 | `resize-stop` | `(event: PointerEvent, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | Resize stop |
+| `drag-cancel` | `(event: Event \| null, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | Drag cancelled (Escape, pointercancel, or `cancelInteraction()`); the rectangle is restored and `newValue` equals `oldValue`. `drag-stop` is not emitted |
+| `resize-cancel` | `(event: Event \| null, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | Resize cancelled; same semantics as `drag-cancel` |
 | `active` | `(value: MovableBoxRect)` | Component activated |
 | `inactive` | `(value: MovableBoxRect)` | Component deactivated |
 | `disabled` | `(value: boolean)` | Disabled state changed |
@@ -205,10 +207,12 @@ focus outline using the theme color:
 - When a resize handle is focused, arrow keys resize along that handle's axes (corner handles
   support both axes) and `Shift` inverts the direction. Handles carry `role="separator"`,
   `aria-orientation`, and `aria-label` (e.g. "Resize bottom right") semantics.
-- `Escape` deactivates an active box.
+- `Escape` cancels an in-progress drag or resize — the rectangle is restored to its
+  pre-interaction state and `drag-cancel` / `resize-cancel` are emitted instead of
+  `drag-stop` / `resize-stop`. When idle and the box is active, `Escape` deactivates it.
 
-Without `keyboardEnabled`, handles stay unfocusable and keyboard events have no effect, preserving
-the previous behavior.
+Without `keyboardEnabled`, handles stay unfocusable and arrow keys have no effect; `Escape` still
+cancels in-progress pointer interactions.
 
 ### Methods
 
@@ -239,6 +243,9 @@ boxRef.value.activate()
 
 // Deactivate
 boxRef.value.deactivate()
+
+// Cancel an in-progress drag/resize and restore the pre-interaction rectangle
+boxRef.value.cancelInteraction()
 </script>
 ```
 

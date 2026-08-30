@@ -106,4 +106,6 @@ export interface MovableBoxExpose<T extends object = object> {
   reset: () => void;
   activate: () => void;
   deactivate: () => void;
+  /** Cancels an in-progress drag or resize and restores the pre-interaction rectangle. */
+  cancelInteraction: (source?: Event | null) => void;
 }

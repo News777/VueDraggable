@@ -153,6 +153,8 @@ interface MovableBoxRect {
 | `resize-start` | `(event: PointerEvent, value: MovableBoxRect)` | 开始调整大小时触发 |
 | `resize` | `(value: MovableBoxRect)` | 调整大小过程中触发（节流） |
 | `resize-stop` | `(event: PointerEvent, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | 停止调整大小时触发 |
+| `drag-cancel` | `(event: Event \| null, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | 拖拽被取消（Escape、pointercancel 或 `cancelInteraction()`）时触发；矩形恢复到交互前状态，`newValue` 等于 `oldValue`，且不会触发 `drag-stop` |
+| `resize-cancel` | `(event: Event \| null, oldValue: MovableBoxRect, newValue: MovableBoxRect)` | 缩放被取消时触发；语义与 `drag-cancel` 相同 |
 | `active` | `(value: MovableBoxRect)` | 组件被激活时触发 |
 | `inactive` | `(value: MovableBoxRect)` | 组件失去激活时触发 |
 | `disabled` | `(value: boolean)` | 禁用状态变化时触发 |
@@ -199,9 +201,9 @@ interface CollisionEventPayload {
 - 方向键：按 `keyboardStep` 移动方框（受 `dragDirections` 限制）。
 - `Shift` + 方向键：以右下角手柄（或 `resizeDirections` 中第一个允许的手柄）为锚点调整大小，方向键指示被拖动边缘的移动方向，因此 `Shift+→`/`Shift+↓` 放大、`Shift+←`/`Shift+↑` 缩小。
 - 聚焦某个缩放手柄后，方向键沿该手柄的轴向调整大小（角手柄支持两个轴向），按住 `Shift` 反向；手柄带有 `role="separator"`、`aria-orientation` 与 `aria-label`（如 "Resize bottom right"）语义。
-- `Escape`：方框处于激活状态时取消激活。
+- `Escape`：指针拖拽或缩放进行中时取消本次交互——矩形恢复到交互前状态，并触发 `drag-cancel` / `resize-cancel`（而不是 `drag-stop` / `resize-stop`）；空闲且方框激活时则取消激活。
 
-不开启 `keyboardEnabled` 时行为保持不变：手柄不可聚焦，键盘事件不生效。
+不开启 `keyboardEnabled` 时，手柄不可聚焦、方向键不生效，但 `Escape` 仍可取消进行中的指针交互。
 
 ### Methods
 
@@ -232,6 +234,9 @@ boxRef.value.activate()
 
 // 停用组件
 boxRef.value.deactivate()
+
+// 取消进行中的拖拽/缩放，恢复交互前的矩形
+boxRef.value.cancelInteraction()
 </script>
 ```
 
