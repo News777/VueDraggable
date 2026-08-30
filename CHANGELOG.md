@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 新增显式取消交互：指针交互进行中按 `Escape`（无需开启 `keyboardEnabled`）、`pointercancel`、丢失指针捕获或调用新增公开方法 `cancelInteraction()`，都会恢复交互前矩形并触发新事件 `drag-cancel` / `resize-cancel`（载荷为 `(source, oldValue, newValue)`，`newValue` 等于 `oldValue`，且不触发 `drag-stop` / `resize-stop`）
 - 新增 `canDrag` / `canResize` 前置守卫：交互开始前以当前矩形（及手柄）调用，返回 `false` 即拒绝本次交互——不激活、不发事件、不挂监听、不修改模型
 - `examples` 演示新增拖拽把手/排除区、交互守卫、取消交互按钮与键盘提示
-- 组件测试迁移为 PointerEvent 模拟并扩充至 71 项，覆盖拖拽触发/排除区域、键盘缩放、手柄无障碍、取消还原、前置守卫、多指过滤与卸载清理
+- 组件测试迁移为 PointerEvent 模拟并扩充至 73 项，覆盖拖拽触发/排除区域、键盘缩放、手柄无障碍、取消还原、前置守卫、多指过滤与卸载清理
 
 ### Changed
 - 拖拽与缩放事件（`drag-start` / `drag-stop` / `resize-start` / `resize-stop`）的 `source` 参数类型由 `MouseEvent | TouchEvent` 收窄为 `PointerEvent`；`PointerEvent` 继承自 `MouseEvent`，仅影响显式注解为 `TouchEvent` 的回调

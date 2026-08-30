@@ -1,3 +1,5 @@
+import type { ExtendsMovableBox } from '../../../types/MovableBox';
+
 export interface BoxGeometryInput {
   left?: number | string;
   top?: number | string;
@@ -20,6 +22,15 @@ export const asNumber = (
 
 export const clamp = (value: number, min: number, max: number): number => {
   return Math.min(Math.max(value, min), max);
+};
+
+export const sameRect = (a: ExtendsMovableBox, b: ExtendsMovableBox): boolean => {
+  return (
+    asNumber(a.left) === asNumber(b.left) &&
+    asNumber(a.top) === asNumber(b.top) &&
+    asNumber(a.width) === asNumber(b.width) &&
+    asNumber(a.height) === asNumber(b.height)
+  );
 };
 
 export const createDefaultBox = () => ({

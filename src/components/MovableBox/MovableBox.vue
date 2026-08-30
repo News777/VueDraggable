@@ -60,7 +60,7 @@ import {
   type PropType
 } from 'vue';
 import { useCollision, useGrid, useKeyboard, useSnap } from './composables';
-import { asNumber, clamp } from './core/box-geometry';
+import { asNumber, clamp, sameRect } from './core/box-geometry';
 import type {
   BoundsMargin,
   CollisionEventPayload,
@@ -808,7 +808,7 @@ const removeInteractionListeners = () => {
   state.eventElement = null;
 };
 
-const capturePointer = (source: PointerEvent) => {
+const capturePointer = () => {
   const target = movableRef.value;
   if (!target || state.pointerId === null) return;
   try {
@@ -830,12 +830,15 @@ const releasePointer = () => {
   }
 };
 
-function abortInteraction() {
+function dropPendingFrame() {
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
     rafId = null;
   }
   pendingEvent = null;
+}
+
+function teardownInteraction() {
   state.isDragging = false;
   state.isResizing = false;
   state.handle = null;
@@ -845,14 +848,15 @@ function abortInteraction() {
   if (!props.active) setActive(false);
 }
 
+function abortInteraction() {
+  dropPendingFrame();
+  teardownInteraction();
+}
+
 function cancelInteraction(source: Event | null = null) {
   const wasDragging = state.isDragging;
   const wasResizing = state.isResizing;
-  if (rafId !== null) {
-    cancelAnimationFrame(rafId);
-    rafId = null;
-  }
-  pendingEvent = null;
+  dropPendingFrame();
   state.isDragging = false;
   state.isResizing = false;
   state.handle = null;
@@ -875,6 +879,7 @@ function deactivateComponent() {
 
 const startInteraction = (source: PointerEvent, handle: HandlePosition | null) => {
   if (props.disabled || props.initRect) return;
+  if (state.isDragging || state.isResizing) return;
   if (handle && (!isResizable.value || !isHandleAllowed(handle))) return;
   if (!handle && !props.draggable) return;
 
@@ -899,7 +904,7 @@ const startInteraction = (source: PointerEvent, handle: HandlePosition | null) =
   if (state.isResizing) emit('resize-start', source, cloneRect(state.beforeInteraction));
   state.eventElement = document.documentElement;
   addInteractionListeners();
-  capturePointer(source);
+  capturePointer();
 };
 
 const isDragAllowedFrom = (target: EventTarget | null) => {
@@ -941,13 +946,7 @@ function endInteraction(source: PointerEvent) {
     emit('resize-stop', source, cloneRect(state.beforeInteraction), cloneRect(internalRect.value));
   }
 
-  state.isDragging = false;
-  state.isResizing = false;
-  state.handle = null;
-  removeInteractionListeners();
-  releasePointer();
-  clearAdvancedState();
-  if (!props.active) setActive(false);
+  teardownInteraction();
 }
 
 const moveWithKeyboard = (direction: DragDirection, distance: number) => {
@@ -968,18 +967,12 @@ const moveWithKeyboard = (direction: DragDirection, distance: number) => {
   }
 };
 
-const sameRect = (a: ExtendsMovableBox, b: ExtendsMovableBox) =>
-  asNumber(a.left) === asNumber(b.left) &&
-  asNumber(a.top) === asNumber(b.top) &&
-  asNumber(a.width) === asNumber(b.width) &&
-  asNumber(a.height) === asNumber(b.height);
-
 const resizeWithKeyboard = (
   handle: HandlePosition,
   direction: DragDirection,
   distance: number
 ) => {
-  if (props.disabled || props.initRect || !isResizable.value || !isHandleAllowed(handle)) return;
+  if (!isResizable.value || !isHandleAllowed(handle)) return;
   refreshArea();
   const previous = cloneRect(internalRect.value);
   const deltaX = direction === 'left' ? -distance : direction === 'right' ? distance : 0;
@@ -1056,8 +1049,7 @@ defineExpose<MovableBoxExpose>({
 });
 
 onUnmounted(() => {
-  if (rafId !== null) cancelAnimationFrame(rafId);
-  pendingEvent = null;
+  dropPendingFrame();
   removeInteractionListeners();
   releasePointer();
   clearAdvancedState();

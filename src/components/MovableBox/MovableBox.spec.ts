@@ -625,6 +625,44 @@ describe('MovableBox', () => {
     expect(wrapper.get('.auto-draggable').attributes('style')).toContain('width: 140px');
   });
 
+  it('moves instead of resizing after the focused handle loses focus', async () => {
+    const wrapper = mountBox({
+      active: true,
+      keyboardEnabled: true,
+      keyboardStep: 10,
+      handles: ['mr'],
+      resizeDirections: ['mr']
+    });
+    const handle = wrapper.get('.handle-mr');
+    await handle.trigger('focus');
+    await handle.trigger('keydown', { key: 'ArrowRight' });
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('width: 130px');
+
+    await handle.trigger('blur');
+    await wrapper.get('.auto-draggable').trigger('keydown', { key: 'ArrowRight' });
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('left: 20px');
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('width: 130px');
+  });
+
+  it('ignores a second pointer down while an interaction is in progress', async () => {
+    const wrapper = mountBox();
+    await wrapper
+      .get('.auto-draggable')
+      .trigger('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 });
+    await wrapper
+      .get('.auto-draggable')
+      .trigger('pointerdown', { clientX: 50, clientY: 50, pointerId: 2 });
+
+    document.documentElement.dispatchEvent(pointerEvent('pointermove', 30, 0));
+    await flushFrame();
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('left: 40px');
+    expect(wrapper.emitted('drag-start')).toHaveLength(1);
+
+    await wrapper.get('.auto-draggable').trigger('keydown', { key: 'Escape' });
+    await nextTick();
+    expect(wrapper.get('.auto-draggable').attributes('style')).toContain('left: 10px');
+  });
+
   it('exposes accessible semantics on resize handles', async () => {
     const wrapper = mountBox({ active: true, keyboardEnabled: true, handles: ['tl', 'mr', 'bm'] });
     const middleRight = wrapper.get('.handle-mr');
