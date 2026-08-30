@@ -51,6 +51,14 @@ export interface MovableBoxProps<T extends object = object> {
     isKeepDecimals?: boolean;
     decimalPlaces?: number;
     draggable?: boolean;
+    /** CSS selector restricting where a drag can start. When set, only matching elements inside the box start drags. */
+    dragHandle?: string;
+    /** CSS selector for elements that must not start a drag. */
+    dragCancel?: string;
+    /** Called before a drag starts with the current rectangle. Return false to reject the interaction without mutating the model. */
+    canDrag?: (value: ExtendsMovableBox<T>) => boolean;
+    /** Called before a resize starts with the current rectangle and handle. Return false to reject the interaction without mutating the model. */
+    canResize?: (value: ExtendsMovableBox<T>, handle: HandlePosition) => boolean;
     resizable?: boolean;
     /** @deprecated Use resizable. */
     resizeable?: boolean;
@@ -89,4 +97,6 @@ export interface MovableBoxExpose<T extends object = object> {
     reset: () => void;
     activate: () => void;
     deactivate: () => void;
+    /** Cancels an in-progress drag or resize and restores the pre-interaction rectangle. */
+    cancelInteraction: (source?: Event | null) => void;
 }

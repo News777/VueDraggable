@@ -66,6 +66,34 @@
           <label>键盘控制:</label>
           <input type="checkbox" v-model="config.keyboardEnabled" />
         </div>
+        <div class="control-row">
+          <label>拖拽把手:</label>
+          <input type="checkbox" v-model="config.useDragHandle" />
+        </div>
+        <div class="control-row" v-if="config.useDragHandle">
+          <span class="hint">仅可通过标题栏拖拽</span>
+        </div>
+        <div class="control-row">
+          <label>拖拽排除区:</label>
+          <input type="checkbox" v-model="config.useDragCancel" />
+        </div>
+        <div class="control-row" v-if="config.useDragCancel">
+          <span class="hint">内容按钮不会触发拖拽</span>
+        </div>
+        <div class="control-row">
+          <label>拖拽守卫:</label>
+          <input type="checkbox" v-model="config.useDragGuard" />
+        </div>
+        <div class="control-row" v-if="config.useDragGuard">
+          <span class="hint">left &lt; 0 的方块禁止拖拽</span>
+        </div>
+        <div class="control-row">
+          <label>缩放守卫:</label>
+          <input type="checkbox" v-model="config.useResizeGuard" />
+        </div>
+        <div class="control-row" v-if="config.useResizeGuard">
+          <span class="hint">宽度小于 160 时禁止缩放</span>
+        </div>
       </div>
 
       <!-- 高级属性 -->
@@ -219,6 +247,9 @@
           <button class="warning" @click="callDeactivate">💤 deactivate</button>
           <button class="warning" @click="callGetConfig">📋 getConfig</button>
         </div>
+        <div class="btn-group">
+          <button class="danger" @click="callCancelInteraction">⛔ cancelInteraction</button>
+        </div>
       </div>
 
       <!-- 预设模板 -->
@@ -285,6 +316,10 @@
             :edge-distance="edgeDistance"
             :drag-directions="currentDragDirections"
             :resize-directions="currentResizeDirections"
+            :drag-handle="config.useDragHandle ? '.box-title' : undefined"
+            :drag-cancel="config.useDragCancel ? '.box-actions' : undefined"
+            :can-drag="config.useDragGuard ? dragGuard : undefined"
+            :can-resize="config.useResizeGuard ? resizeGuard : undefined"
             :enable-transition="config.enableTransition"
             :keyboard-enabled="config.keyboardEnabled"
             :disabled-user-select="config.disabledUserSelect"
@@ -292,9 +327,11 @@
             @drag-start="onDragStart"
             @drag="onDrag"
             @drag-stop="onDragStop"
+            @drag-cancel="onDragCancel"
             @resize-start="onResizeStart"
             @resize="onResize"
             @resize-stop="onResizeStop"
+            @resize-cancel="onResizeCancel"
             @active="onActive(box.uid)"
             @inactive="onInactive(box.uid)"
             @dblclick="onDoubleClick"
@@ -315,6 +352,9 @@
                   {{ Math.round(Number(box.data.height)) }}
                 </div>
               </div>
+              <div class="box-actions">
+                <button class="box-btn" @click.stop>内容按钮</button>
+              </div>
             </div>
           </VueMovableBox>
 
@@ -329,7 +369,7 @@
       
       <!-- 快捷键提示 -->
       <div class="keyboard-hint" v-if="config.keyboardEnabled">
-        <kbd>↑↓←→</kbd> 移动 | <kbd>Esc</kbd> 取消激活
+        <kbd>↑↓←→</kbd> 移动 | <kbd>Shift+↑↓←→</kbd> 缩放 | <kbd>Esc</kbd> 取消交互/取消激活
       </div>
     </div>
   </div>
@@ -402,6 +442,10 @@ const config = reactive({
   initRect: false,
   enableTransition: false,
   keyboardEnabled: false,
+  useDragHandle: false,
+  useDragCancel: false,
+  useDragGuard: false,
+  useResizeGuard: false,
   snapToGrid: false,
   gridSize: 20,
   snapToElements: false,
@@ -643,6 +687,28 @@ const callGetConfig = () => {
   }
 };
 
+// 调用 cancelInteraction
+const callCancelInteraction = () => {
+  const ref = boxRefs.get(selectedUid.value);
+  if (ref) {
+    ref.cancelInteraction?.();
+    addLog('cancelInteraction', '已取消当前交互并还原矩形', 'warn');
+  }
+};
+
+// 交互守卫：返回 false 时本次交互不会开始，也不会修改模型
+const dragGuard = (value: ExtendsMovableBox) => {
+  const allowed = asNumber(value.left) >= 0;
+  if (!allowed) addLog('canDrag', `${selectedUid.value} 已越界，拒绝拖拽`, 'warn');
+  return allowed;
+};
+
+const resizeGuard = (value: ExtendsMovableBox) => {
+  const allowed = asNumber(value.width) >= 160;
+  if (!allowed) addLog('canResize', `${selectedUid.value} 宽度小于 160，拒绝缩放`, 'warn');
+  return allowed;
+};
+
 // 预设模板
 const loadTemplate = (type: string) => {
   const [w, h] = canvasSize.value.split('x').map(Number);
@@ -722,7 +788,7 @@ const loadTemplate = (type: string) => {
 };
 
 // 事件处理
-const onDragStart = (_event: MouseEvent | TouchEvent, _value: ExtendsMovableBox) => {
+const onDragStart = (_event: PointerEvent, _value: ExtendsMovableBox) => {
   addLog('drag-start', `开始拖拽: ${selectedUid.value}`, 'drag');
 };
 
@@ -731,14 +797,22 @@ const onDrag = (_value: ExtendsMovableBox) => {
 };
 
 const onDragStop = (
-  _event: MouseEvent | TouchEvent,
+  _event: PointerEvent,
   _oldValue: ExtendsMovableBox,
   _newValue: ExtendsMovableBox
 ) => {
   addLog('drag-stop', `拖拽结束: ${selectedUid.value}`, 'success');
 };
 
-const onResizeStart = (_event: MouseEvent | TouchEvent, _value: ExtendsMovableBox) => {
+const onDragCancel = (
+  _event: Event | null,
+  _oldValue: ExtendsMovableBox,
+  _newValue: ExtendsMovableBox
+) => {
+  addLog('drag-cancel', `拖拽已取消并还原: ${selectedUid.value}`, 'warn');
+};
+
+const onResizeStart = (_event: PointerEvent, _value: ExtendsMovableBox) => {
   addLog('resize-start', `开始调整: ${selectedUid.value}`, 'resize');
 };
 
@@ -747,11 +821,19 @@ const onResize = (_value: ExtendsMovableBox) => {
 };
 
 const onResizeStop = (
-  _event: MouseEvent | TouchEvent,
+  _event: PointerEvent,
   _oldValue: ExtendsMovableBox,
   _newValue: ExtendsMovableBox
 ) => {
   addLog('resize-stop', `调整结束: ${selectedUid.value}`, 'success');
+};
+
+const onResizeCancel = (
+  _event: Event | null,
+  _oldValue: ExtendsMovableBox,
+  _newValue: ExtendsMovableBox
+) => {
+  addLog('resize-cancel', `缩放已取消并还原: ${selectedUid.value}`, 'warn');
 };
 
 const onActive = (uid: string) => {
@@ -929,6 +1011,11 @@ const onCollision = (data: CollisionEventPayload) => {
     color: #888;
     margin-left: 5px;
   }
+
+  .hint {
+    font-size: 11px;
+    color: #909399;
+  }
 }
 
 .btn-group {
@@ -959,6 +1046,11 @@ const onCollision = (data: CollisionEventPayload) => {
     &.warning {
       background: #e6a23c;
       &:hover { background: #cf9236; }
+    }
+
+    &.danger {
+      background: #f56c6c;
+      &:hover { background: #dd5c5c; }
     }
   }
 }
@@ -1126,10 +1218,24 @@ const onCollision = (data: CollisionEventPayload) => {
   .box-info {
     font-size: 11px;
     color: #aaa;
-    
+
     div {
       margin: 2px 0;
     }
+  }
+
+  .box-actions {
+    margin-top: 8px;
+  }
+
+  .box-btn {
+    padding: 2px 10px;
+    font-size: 11px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    cursor: pointer;
   }
 }
 </style>

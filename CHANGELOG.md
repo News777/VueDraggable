@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-08-30
+
+### Added
+- 使用 Pointer Events 统一鼠标、触摸和触控笔交互：单一 `pointerdown` 入口，按 `pointerId` 过滤多指触控，并借助 `setPointerCapture` 与 `lostpointercapture` 保证指针离开窗口后交互不残留监听器
+- 新增 `dragHandle` 与 `dragCancel` 属性，可配置拖拽触发区域与排除区域，避免方框内的表单、按钮等内容误触发拖拽；无效选择器按"禁止拖拽"处理而不是抛错
+- 新增键盘调整尺寸：`Shift` + 方向键以右下角手柄（或 `resizeDirections` 中第一个允许的手柄）为锚点缩放；聚焦某个缩放手柄后，方向键沿该手柄轴向缩放、`Shift` 反向，复用 `resizeFromHandle`，最小/最大尺寸、比例锁定、边界与碰撞约束继续生效
+- 缩放手柄新增 `role="separator"`、`aria-orientation` 与 `aria-label`（如 "Resize bottom right"）无障碍语义；`keyboardEnabled` 开启时手柄可聚焦，并为方框与手柄增加跟随主题色的 `:focus-visible` 焦点轮廓
+- 新增显式取消交互：指针交互进行中按 `Escape`（无需开启 `keyboardEnabled`）、`pointercancel`、丢失指针捕获或调用新增公开方法 `cancelInteraction()`，都会恢复交互前矩形并触发新事件 `drag-cancel` / `resize-cancel`（载荷为 `(source, oldValue, newValue)`，`newValue` 等于 `oldValue`，且不触发 `drag-stop` / `resize-stop`）
+- 新增 `canDrag` / `canResize` 前置守卫：交互开始前以当前矩形（及手柄）调用，返回 `false` 即拒绝本次交互——不激活、不发事件、不挂监听、不修改模型
+- `examples` 演示新增拖拽把手/排除区、交互守卫、取消交互按钮与键盘提示
+- 组件测试迁移为 PointerEvent 模拟并扩充至 71 项，覆盖拖拽触发/排除区域、键盘缩放、手柄无障碍、取消还原、前置守卫、多指过滤与卸载清理
+
+### Changed
+- 拖拽与缩放事件（`drag-start` / `drag-stop` / `resize-start` / `resize-stop`）的 `source` 参数类型由 `MouseEvent | TouchEvent` 收窄为 `PointerEvent`；`PointerEvent` 继承自 `MouseEvent`，仅影响显式注解为 `TouchEvent` 的回调
+- `pointercancel` 由"按正常结束处理"改为"按取消处理"：恢复交互前矩形并触发 `drag-cancel` / `resize-cancel`
+- 指针拖拽或缩放进行中时，键盘事件不再介入移动方框，仅 `Escape` 取消生效
+- `disabled` / `initRect` / `active` 等属性强制中止交互时保持原有行为（不还原矩形），与显式取消的"还原"语义区分
+
 ## [1.1.7] - 2026-08-20
 
 ### Changed

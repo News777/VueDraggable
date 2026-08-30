@@ -30,6 +30,16 @@ declare const _default: __VLS_WithTemplateSlots<import('vue').DefineComponent<im
         type: BooleanConstructor;
         default: boolean;
     };
+    dragHandle: StringConstructor;
+    dragCancel: StringConstructor;
+    canDrag: {
+        type: PropType<(value: ExtendsMovableBox) => boolean>;
+        default: undefined;
+    };
+    canResize: {
+        type: PropType<(value: ExtendsMovableBox, handle: "tl" | "tm" | "tr" | "mr" | "br" | "bm" | "bl" | "ml") => boolean>;
+        default: undefined;
+    };
     resizable: {
         type: BooleanConstructor;
         default: undefined;
@@ -155,13 +165,16 @@ declare const _default: __VLS_WithTemplateSlots<import('vue').DefineComponent<im
     reset: () => void;
     activate: () => void;
     deactivate: () => void;
+    cancelInteraction: (source?: Event | null | undefined) => void;
 }, {}, {}, {}, import('vue').ComponentOptionsMixin, import('vue').ComponentOptionsMixin, {
     "update:modelValue": (value: ExtendsMovableBox) => void;
     drag: (value: ExtendsMovableBox) => void;
-    "drag-start": (source: MouseEvent | TouchEvent, value: ExtendsMovableBox) => void;
-    "drag-stop": (source: MouseEvent | TouchEvent, oldValue: ExtendsMovableBox, newValue: ExtendsMovableBox) => void;
-    "resize-start": (source: MouseEvent | TouchEvent, value: ExtendsMovableBox) => void;
-    "resize-stop": (source: MouseEvent | TouchEvent, oldValue: ExtendsMovableBox, newValue: ExtendsMovableBox) => void;
+    "drag-start": (source: PointerEvent, value: ExtendsMovableBox) => void;
+    "drag-stop": (source: PointerEvent, oldValue: ExtendsMovableBox, newValue: ExtendsMovableBox) => void;
+    "resize-start": (source: PointerEvent, value: ExtendsMovableBox) => void;
+    "resize-stop": (source: PointerEvent, oldValue: ExtendsMovableBox, newValue: ExtendsMovableBox) => void;
+    "drag-cancel": (source: Event | null, oldValue: ExtendsMovableBox, newValue: ExtendsMovableBox) => void;
+    "resize-cancel": (source: Event | null, oldValue: ExtendsMovableBox, newValue: ExtendsMovableBox) => void;
     resize: (value: ExtendsMovableBox) => void;
     move: (value: ExtendsMovableBox) => void;
     active: (value: ExtendsMovableBox) => void;
@@ -200,6 +213,16 @@ declare const _default: __VLS_WithTemplateSlots<import('vue').DefineComponent<im
     draggable: {
         type: BooleanConstructor;
         default: boolean;
+    };
+    dragHandle: StringConstructor;
+    dragCancel: StringConstructor;
+    canDrag: {
+        type: PropType<(value: ExtendsMovableBox) => boolean>;
+        default: undefined;
+    };
+    canResize: {
+        type: PropType<(value: ExtendsMovableBox, handle: "tl" | "tm" | "tr" | "mr" | "br" | "bm" | "bl" | "ml") => boolean>;
+        default: undefined;
     };
     resizable: {
         type: BooleanConstructor;
@@ -327,10 +350,12 @@ declare const _default: __VLS_WithTemplateSlots<import('vue').DefineComponent<im
     onActive?: ((value: ExtendsMovableBox) => any) | undefined;
     onDisabled?: ((value: boolean) => any) | undefined;
     "onUpdate:modelValue"?: ((value: ExtendsMovableBox) => any) | undefined;
-    "onDrag-start"?: ((source: MouseEvent | TouchEvent, value: ExtendsMovableBox) => any) | undefined;
-    "onDrag-stop"?: ((source: MouseEvent | TouchEvent, oldValue: ExtendsMovableBox, newValue: ExtendsMovableBox) => any) | undefined;
-    "onResize-start"?: ((source: MouseEvent | TouchEvent, value: ExtendsMovableBox) => any) | undefined;
-    "onResize-stop"?: ((source: MouseEvent | TouchEvent, oldValue: ExtendsMovableBox, newValue: ExtendsMovableBox) => any) | undefined;
+    "onDrag-start"?: ((source: PointerEvent, value: ExtendsMovableBox) => any) | undefined;
+    "onDrag-stop"?: ((source: PointerEvent, oldValue: ExtendsMovableBox, newValue: ExtendsMovableBox) => any) | undefined;
+    "onResize-start"?: ((source: PointerEvent, value: ExtendsMovableBox) => any) | undefined;
+    "onResize-stop"?: ((source: PointerEvent, oldValue: ExtendsMovableBox, newValue: ExtendsMovableBox) => any) | undefined;
+    "onDrag-cancel"?: ((source: Event | null, oldValue: ExtendsMovableBox, newValue: ExtendsMovableBox) => any) | undefined;
+    "onResize-cancel"?: ((source: Event | null, oldValue: ExtendsMovableBox, newValue: ExtendsMovableBox) => any) | undefined;
     onMove?: ((value: ExtendsMovableBox) => any) | undefined;
     onInactive?: ((value: ExtendsMovableBox) => any) | undefined;
     "onOut-of-bounds"?: ((direction: DragDirection) => any) | undefined;
@@ -344,6 +369,8 @@ declare const _default: __VLS_WithTemplateSlots<import('vue').DefineComponent<im
     isKeepDecimals: boolean;
     decimalPlaces: number;
     draggable: boolean;
+    canDrag: (value: ExtendsMovableBox) => boolean;
+    canResize: (value: ExtendsMovableBox, handle: "tl" | "tm" | "tr" | "mr" | "br" | "bm" | "bl" | "ml") => boolean;
     resizable: boolean;
     resizeable: boolean;
     limitAreaForParent: boolean;

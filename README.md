@@ -16,7 +16,11 @@ A high-performance, feature-rich Vue 3 container component for drag-and-drop and
 
 - 🖱️ **Draggable** - Freely move elements anywhere
 - 📐 **Resizable** - 8-direction resize handles
-- 📱 **Mobile Support** - Full touch event support
+- 📱 **Mobile Support** - Pointer Events unify mouse, touch, and pen input
+- 🖐️ **Drag Handles** - Configurable drag trigger and cancel areas
+- ⌨️ **Keyboard & A11y** - Arrow-key movement, Shift+arrow resizing, focusable handles with focus states
+- ↩️ **Cancellation** - Escape or programmatic cancel restores the pre-interaction rectangle
+- 🛡️ **Guards** - `canDrag` / `canResize` hooks reject interactions before they start
 - 🔒 **Aspect Ratio Lock** - Maintain proportions while scaling
 - 🎨 **Customizable Theme** - Flexible theme configuration
 - 📏 **Unit Support** - Supports both px and % units
